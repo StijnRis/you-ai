@@ -39,13 +39,13 @@ Criterion: Technical execution and Token Factory use.
 
 ## Models and Token Factory use
 
-All AI runs on Nebius Token Factory. Users can pick which open model the agent uses. The default is Qwen3-235B-A22B-Instruct-2507, chosen from the comparison below. It does three jobs:
+All AI runs on Nebius Token Factory. Users can pick which open model the agent uses. The default is DeepSeek-V4-Flash-0731, which scored best in the comparison below. Qwen3-235B-A22B and Qwen3-30B-A3B are the other options. It does three jobs:
 
 1. Chat agent. It calls tools on our backend to read your data, find correlations, compare groups, search the web (Nebius's Tavily search API), and create and analyse experiments, with up to 10 tool calls per answer.
 2. Reading new file formats. For an export we haven't seen before, it writes a JSON conversion that maps the file onto our metrics, using Token Factory's JSON-schema output. The conversion is saved and reused for later files with the same shape.
 3. Experiment verdicts. When an experiment ends, it explains the before/during/after statistics in plain language.
 
-Qwen3-235B-A22B activates about 22B of its 235B parameters per token, so it is cheap enough to run on every chat turn, and it handles tool calls and strict JSON output well. The product uses no closed models, and the statistics are computed in code, not by the model. Outside the product, we used Claude to help write the code and ElevenLabs for the visuals.
+We offer a choice because the models trade off differently: DeepSeek gave the best answers with the fewest tokens, and Qwen3-235B was the fastest. The product uses no closed models, and the statistics are computed in code, not by the model. Outside the product, we used Claude to help write the code and ElevenLabs for the visuals.
 
 <!--
 Measurable model advantage (Required)
@@ -59,40 +59,27 @@ proof if you have one, such as an eval sheet, a comparison table or screenshots.
 A rough measurement with real numbers scores higher than a polished claim with
 none. Criterion: Measurable model advantage.
 
-TODO: fill in the table with real measurements before submitting.
 -->
 
 ## Measurable model advantage
 
-We measure three things when the same data question is sent to each model:
-- **Token usage.** We record input, output and total tokens because this shows how much context each model needs and provides a concrete proxy for usage cost.
-- **Execution time.** We record the time from sending the question to receiving the answer because a personal analytics assistant must be fast enough to use interactively.
-- **Subjective answer quality.** Two people rate each answer independently on a 1–5 Likert scale. This quantifies the most subjective, but also most important, metric: whether users are actually satisfied with the answer.
+We sent the same question to all three models on Token Factory. The provider, tools, system prompt and data stayed the same; only the model changed. For each run we recorded token usage (a stand-in for cost), time until the full answer arrived, and a 1–5 quality rating from two of us, given independently.
 
-These measurements keep the comparison fair: the provider, tools, system prompt, data context and user question stay the same; only the model changes.
+Prompt: "What patterns are hiding in my data?"
 
-**Compared against:** the three open-weight models available in our Nebius Token Factory chat interface:
-
-- **Qwen3-235B-A22B-Instruct-2507** (our primary model)
-- **Qwen3-30B-A3B-Instruct-2507** (smaller open-weight baseline)
-- **DeepSeek-V4-Flash-0731** (alternative open-weight model)
-
-For the prompt **“What patterns are hiding in my data?”**, the exported chat record contains one run for each model:
-
-| Metric | Qwen3-235B-A22B | Qwen3-30B-A3B | DeepSeek-V4-Flash |
+| | Qwen3-235B-A22B | Qwen3-30B-A3B | DeepSeek-V4-Flash |
 |---|---:|---:|---:|
-| Responses evaluated | 1 | 1 | 1 |
 | Input tokens | 46,225 | 85,597 | 32,440 |
 | Output tokens | 622 | 671 | 874 |
 | Total tokens | 46,847 | 86,268 | 33,314 |
-| Execution time | 23.230 s | 47.554 s | 33.129 s |
-| Person 1 rating | 3/5 | 4/5 | 4/5 |
-| Person 2 rating | 3/5 | 3/5 | 5/5 |
-| Mean subjective rating | 3.0/5 | 3.5/5 | 4.5/5 |
+| Time to answer | 23.2 s | 47.6 s | 33.1 s |
+| Rating, person 1 | 3/5 | 4/5 | 4/5 |
+| Rating, person 2 | 3/5 | 3/5 | 5/5 |
+| Mean rating | 3.0 | 3.5 | 4.5 |
 
-**Conclusion:** DeepSeek-V4-Flash delivered the highest user-perceived quality (4.5/5), while Qwen3-235B was fastest (23.230 s). The early result shows a clear quality–latency trade-off, so more runs are needed before choosing one overall winner.
+DeepSeek-V4-Flash gave the best answer and used 29% fewer tokens than Qwen3-235B and 61% fewer than Qwen3-30B, so we made it the default. Qwen3-235B answered about 10 seconds faster. The smaller Qwen3-30B was the slowest and used the most tokens. This is one prompt with one run per model, so we treat it as a first result, not a benchmark.
 
-
+Two parts of the design cut model use regardless of which model is picked. A file format we have seen before is recognised by its shape and costs 0 tokens to import. And the model receives computed statistics (correlation, sample size, corrected p-value) instead of raw daily values, which keeps prompts small.
 
 <!--
 Responsible design (Required)
