@@ -136,7 +136,7 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                   ) : adapter.provider === "mood-tracker" ? (
                     <SimpleConnect
                       provider="mood-tracker"
-                      label="Mood tracker"
+                      label="Fake mood feed"
                       fields={[]}
                       hint="Backfills a year of simulated check-ins. Your own logs from the Mood page sit on the same series."
                     />

@@ -30,7 +30,7 @@ const SLOTS = [
 
 export const moodAdapter: ApiAdapter<Record<string, never>> = {
   provider: "mood-tracker",
-  label: "Mood tracker",
+  label: "Fake mood feed",
   description:
     "A simulated mood feed: two check-ins a day on a 1-10 scale. Connect it to see mood alongside your other data, or log your own on the Mood page.",
   types: TYPES,

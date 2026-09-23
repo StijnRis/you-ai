@@ -41,7 +41,7 @@ export default async function MoodPage() {
       {stats.days === 0 ? (
         <EmptyState
           title="No mood data yet"
-          description="Log your first check-in above, or connect the Mood tracker source to backfill a year of simulated history and see the stats fill in."
+          description="Log your first check-in above, or connect the Fake mood feed source to backfill a year of simulated history and see the stats fill in."
         />
       ) : (
         <>
