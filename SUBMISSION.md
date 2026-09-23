@@ -37,13 +37,13 @@ Criterion: Technical execution and Token Factory use.
 
 ## Models and Token Factory use
 
-All AI in YouAI runs on **Nebius Token Factory** with one open model: **Qwen3-235B-A22B-Instruct-2507**. It fills three roles:
+All AI in YouAI runs on **Nebius Token Factory**. You can pick which open model the agent uses, so you can go with the one you prefer. We ran a comparison between models (see below) and configured the winner, **Qwen3-235B-A22B-Instruct-2507**, as the default. It fills three roles:
 
-1. **Agent with tools (chat and experiment design).** The model answers questions by calling our tools rather than guessing: list metrics, summarise a series, find correlations, compare groups, search the web (Tavily), and create and analyse experiments. It plans multi-step tool sequences, up to 10 steps per answer.
+1. **Agent with tools (chat and experiment design).** The agent works directly against our application backend through tools. It fetches your actual data, creates experiments and can manage everything for you. It answers questions by calling those tools rather than guessing: list metrics, summarise a series, find correlations, compare groups, search the web (Tavily), and create and analyse experiments. It plans multi-step tool sequences, up to 10 steps per answer.
 2. **Structured extraction (reading unknown file formats).** When someone uploads an export we've never seen, the model writes a *conversion* (a JSON description of how that file maps onto our metrics), using Token Factory's JSON-schema-constrained output. The conversion is stored and reused for every later file with the same shape, so each new format reaches the model once.
 3. **Writing the experiment verdict.** When an experiment ends, the model turns the computed before/during/after statistics into a plain-language verdict.
 
-We chose one large open model with an efficient design (it only runs about 22B of its 235B parameters for each response) because it handles tool-calling and strict JSON output reliably, and it's cheap enough to run on every chat turn. The model is configurable per deployment from the admin settings, so it can be swapped without code changes. **No closed models are used anywhere.** The statistics themselves are computed in code, not by the model.
+We chose one large open model with an efficient design (it only runs about 22B of its 235B parameters for each response) because it handles tool-calling and strict JSON output reliably, and it's cheap enough to run on every chat turn. The model can be switched in the settings, so it can be swapped without code changes. **No closed models are used anywhere.** The statistics themselves are computed in code, not by the model.
 
 <!--
 Measurable model advantage (Required)
@@ -91,28 +91,10 @@ don't claim encryption unless it's added.
 
 ## Responsible design
 
+**Your data stays on your device.** We built the hackathon version as a web app because that's what we have the most experience with. The product we're building is local-first: your data lives primarily on your own phone and never leaves it. You can optionally turn on sync between devices to see the same data on your laptop or other phones. Because this is so much personal data, keeping it on your device is the safest default.
+
+**Fully open source.** The repo is public, and we ship exactly that code, so anyone can inspect what we do. If you don't trust us, you can host it yourself, and we have no problem with that.
+
+**Monetisation: pay for convenience.** Since anyone can run it for free, people pay us for convenience, because hardly anyone wants to host it themselves when we can do it for them. We plan several pricing tiers: a fully free plan so people can try it out, with limited AI usage because AI calls cost money, and paid plans with more, including a free trial of Pro.
+
 Every AI tool is scoped to the signed-in user in server code. The model never sees or supplies a user ID, so no prompt can reach another person's data. The model gets aggregated statistics rather than raw records, and it's instructed to separate correlation from causation and to say when a result isn't significant. Experiment results are labelled as before/after comparisons with no control group. Users can disconnect any source, and made-up sample data is clearly marked and deleted with one click.
-
-<!--
-Pitch Slides (Required)
-
-Public link to the slides you pitch from if you reach the top 8. We open this
-link on the stage computer, no own laptops. Test it in an incognito window.
-Cover all six judging criteria, a criterion you skip scores zero. 5 minutes
-including live demo.
-
-TODO: paste the public slides link.
--->
-
-## Pitch Slides
-
-Link: [public slides link]
-
-Outline (5 minutes, all criteria covered):
-
-1. **Problem** (≈30 s): "Your data knows why you had a bad week. No app can tell you." Show the scattered apps.
-2. **Product and user** (≈30 s): YouAI in one sentence, the target user (data-driven people optimising energy and output), how often they hit the problem.
-3. **Live demo** (≈2 min): connect sample data and GitHub, then ask "why are my Mondays unproductive?" → the chat finds a pattern → "design an experiment to fix it" → it researches and creates one.
-4. **Tech and Token Factory** (≈40 s): Qwen3-235B in three roles (agent, structured extraction, verdicts); formats recognised once and reused; statistics computed in code, not by the model.
-5. **Measured advantage and responsible design** (≈40 s): the comparison table, per-user scoping, correlation-vs-causation guardrails.
-6. **Company potential** (≈20 s): consumer entry point → coaches, therapists and team wellbeing as B2B.
