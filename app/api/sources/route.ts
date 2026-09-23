@@ -35,7 +35,10 @@ export async function POST(request: Request) {
   }
 
   const existing = await listSources(user.id);
-  if (existing.some((source) => source.kind === "api" && source.provider === adapter.provider)) {
+  if (
+    !adapter.multiple &&
+    existing.some((source) => source.kind === "api" && source.provider === adapter.provider)
+  ) {
     return Response.json({ error: `${adapter.label} is already connected.` }, { status: 409 });
   }
 

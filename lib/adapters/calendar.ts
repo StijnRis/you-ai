@@ -48,6 +48,7 @@ const TYPES: Record<string, TypeMeta> = {
 export const calendarAdapter: ApiAdapter<CalendarConfig> = {
   provider: "google-calendar",
   label: "Google Calendar",
+  multiple: true,
   description: "Your events per day and time spent in them, from the calendar's secret iCal address.",
   types: TYPES,
 

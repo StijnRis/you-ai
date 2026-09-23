@@ -175,11 +175,16 @@ export function SimpleConnect({
       const response = await fetch("/api/sources", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider, label, config }),
+        body: JSON.stringify({
+          provider,
+          label: typeof config.name === "string" ? `${label} — ${config.name}` : label,
+          config,
+        }),
       });
       const payload = await response.json();
       if (payload.error) throw new Error(payload.error);
       if (payload.syncError) setError(`Connected, but the first sync failed: ${payload.syncError}`);
+      setValues({});
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
