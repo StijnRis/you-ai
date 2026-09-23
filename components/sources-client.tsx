@@ -139,6 +139,88 @@ function Field({
   );
 }
 
+type ConnectField = {
+  key: string;
+  label: string;
+  placeholder: string;
+  secret?: boolean;
+  optional?: boolean;
+  wide?: boolean;
+};
+
+/** Connect form for adapters whose config is just a few text fields. */
+export function SimpleConnect({
+  provider,
+  label,
+  fields,
+  hint,
+}: {
+  provider: string;
+  label: string;
+  fields: ConnectField[];
+  hint?: string;
+}) {
+  const router = useRouter();
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function connect() {
+    setBusy(true);
+    setError(null);
+    try {
+      const config = Object.fromEntries(
+        Object.entries(values).filter(([, value]) => value.trim() !== ""),
+      );
+      const response = await fetch("/api/sources", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider, label, config }),
+      });
+      const payload = await response.json();
+      if (payload.error) throw new Error(payload.error);
+      if (payload.syncError) setError(`Connected, but the first sync failed: ${payload.syncError}`);
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const valid = fields.every((field) => field.optional || values[field.key]?.trim());
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3">
+        {fields.map((field) => (
+          <label key={field.key} className="block text-xs text-muted">
+            {field.label}
+            {field.optional ? " (optional)" : ""}
+            <input
+              type={field.secret ? "password" : "text"}
+              value={values[field.key] ?? ""}
+              onChange={(event) => setValues({ ...values, [field.key]: event.target.value })}
+              placeholder={field.placeholder}
+              className={`mt-1 block h-9 rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none focus:border-border-strong ${field.wide ? "w-96 max-w-full" : "w-48"}`}
+            />
+          </label>
+        ))}
+        <button
+          onClick={connect}
+          disabled={!valid || busy}
+          className="flex h-9 items-center gap-2 rounded-lg bg-text px-4 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-30"
+        >
+          {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
+          Connect
+        </button>
+      </div>
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {hint ? <p className="text-xs text-muted">{hint}</p> : null}
+    </div>
+  );
+}
+
 export function SyncButton({ sourceId }: { sourceId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);

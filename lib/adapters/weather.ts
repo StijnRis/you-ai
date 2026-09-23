@@ -203,9 +203,3 @@ function isoDaysAgo(days: number): string {
 
 const minDate = (a: string, b: string) => (a < b ? a : b);
 const maxDate = (a: string, b: string) => (a > b ? a : b);
-
-export const apiAdapters = { "open-meteo": weatherAdapter } as const;
-
-export function getAdapter(provider: string) {
-  return apiAdapters[provider as keyof typeof apiAdapters] ?? null;
-}

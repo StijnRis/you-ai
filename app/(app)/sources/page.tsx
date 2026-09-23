@@ -1,8 +1,8 @@
 import { requireUser } from "@/lib/auth";
 import { listSources } from "@/lib/db/queries";
-import { weatherAdapter } from "@/lib/adapters/weather";
+import { apiAdapters } from "@/lib/adapters";
 import { Badge, Card, SectionHeading } from "@/components/ui";
-import { WeatherConnect, SyncButton } from "@/components/sources-client";
+import { SimpleConnect, SyncButton, WeatherConnect } from "@/components/sources-client";
 
 export default async function SourcesPage() {
   const user = await requireUser();
@@ -19,58 +19,83 @@ export default async function SourcesPage() {
           description="Two kinds of adapter feed the same event store: ones that pull from a service directly, and ones fed by a data export."
         />
 
-        <Card>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="max-w-xl">
-              <h3 className="font-medium">{weatherAdapter.label}</h3>
-              <p className="mt-1 text-sm text-muted">{weatherAdapter.description}</p>
-              <p className="mt-2 text-xs text-muted">
-                Produces {Object.keys(weatherAdapter.types).length} metrics:{" "}
-                {Object.values(weatherAdapter.types)
-                  .map((type) => type.label.toLowerCase())
-                  .join(", ")}
-                .
-              </p>
-            </div>
-            <Badge tone="neutral">direct API</Badge>
-          </div>
-
-          <div className="mt-5 border-t border-border pt-5">
-            <WeatherConnect />
-          </div>
-        </Card>
-      </section>
-
-      {apiSources.length > 0 ? (
-        <section>
-          <SectionHeading title="Connected" />
-          <div className="space-y-2">
-            {apiSources.map((source) => {
-              const config = source.config as { placeName?: string; latitude?: number; longitude?: number };
-              return (
-                <Card key={source.id} className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{source.label}</p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {config.placeName ??
-                        (config.latitude !== undefined
-                          ? `${config.latitude.toFixed(3)}, ${config.longitude?.toFixed(3)}`
-                          : source.provider)}
-                      {source.lastSyncAt
-                        ? ` · last synced ${source.lastSyncAt.toLocaleString()}`
-                        : " · never synced"}
+        <div className="space-y-3">
+          {Object.values(apiAdapters).map((adapter) => {
+            const source = apiSources.find((row) => row.provider === adapter.provider);
+            return (
+              <Card key={adapter.provider}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="max-w-xl">
+                    <h3 className="font-medium">{source?.label ?? adapter.label}</h3>
+                    <p className="mt-1 text-sm text-muted">{adapter.description}</p>
+                    <p className="mt-2 text-xs text-muted">
+                      Produces{" "}
+                      {Object.values(adapter.types)
+                        .map((type) => type.label.toLowerCase())
+                        .join(", ")}
+                      .
                     </p>
-                    {source.lastSyncError ? (
-                      <p className="mt-1 text-xs text-danger">{source.lastSyncError}</p>
-                    ) : null}
                   </div>
-                  <SyncButton sourceId={source.id} />
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
+                  <Badge tone={source ? "positive" : "neutral"}>
+                    {source ? "connected" : "direct API"}
+                  </Badge>
+                </div>
+
+                <div className="mt-5 border-t border-border pt-5">
+                  {source ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-muted">
+                          {source.lastSyncAt
+                            ? `Last synced ${source.lastSyncAt.toLocaleString()}`
+                            : "Never synced"}
+                        </p>
+                        {source.lastSyncError ? (
+                          <p className="mt-1 text-xs text-danger">{source.lastSyncError}</p>
+                        ) : null}
+                      </div>
+                      <SyncButton sourceId={source.id} />
+                    </div>
+                  ) : adapter.provider === "open-meteo" ? (
+                    <WeatherConnect />
+                  ) : adapter.provider === "github" ? (
+                    <SimpleConnect
+                      provider="github"
+                      label="GitHub"
+                      fields={[
+                        { key: "username", label: "Username", placeholder: "octocat" },
+                        {
+                          key: "token",
+                          label: "Token",
+                          placeholder: "ghp_…",
+                          secret: true,
+                          optional: true,
+                        },
+                      ]}
+                      hint="GitHub's API needs a token even for public activity. Create a classic token with no scopes at github.com/settings/tokens."
+                    />
+                  ) : (
+                    <SimpleConnect
+                      provider="google-calendar"
+                      label="Google Calendar"
+                      fields={[
+                        {
+                          key: "icalUrl",
+                          label: "Secret iCal address",
+                          placeholder: "https://calendar.google.com/calendar/ical/…/basic.ics",
+                          secret: true,
+                          wide: true,
+                        },
+                      ]}
+                      hint="In Google Calendar: Settings → your calendar → Integrate calendar → Secret address in iCal format."
+                    />
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
 
       {importSources.length > 0 ? (
         <section>
