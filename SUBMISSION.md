@@ -9,18 +9,18 @@ with one or two sentences on why this could credibly become a company. Judges
 read this before opening your link, so lead with the problem, not the tech.
 Criteria: Product and user value, Problem and company potential.
 
-Users: developers who want to optimise their life
+Users: data-driven people who want to optimise their life
 -->
 
 ## What did you build, and what problem does it solve?
 
-Developers already track their life in a dozen places: commits on GitHub, meetings in their calendar, music on Spotify, sleep and steps on a watch. Each app shows one slice, and none can answer the questions that matter: *"Why was last week so unproductive?"*, *"Do meeting-heavy days kill my focus the next day?"*, *"Does a late night of coding wreck my mood?"* The answer is almost always in how two sources relate, and no single app sees both.
+YouAI is for data-driven people: the ones who already track their life in a dozen places: commits on GitHub, meetings in their calendar, music on Spotify, sleep and steps on a watch. Each app shows one slice, and none can answer the questions that matter: *"Why was last week so unproductive?"*, *"Do meeting-heavy days kill my focus the next day?"*, *"Does a late night of coding wreck my mood?"* The answer is almost always in how two sources relate, and no single app sees both.
 
 Today people cope by guessing, or by exporting CSVs into a spreadsheet they abandon after a weekend. The problem isn't occasional. It comes back every week someone feels off and can't say why.
 
 **YouAI** connects those sources (GitHub, any calendar, Spotify, weather, Apple Health, Google Fit, Samsung Health or any file export) into one timeline. It runs proper statistics across them: correlations with time lags and a correction for testing many pairs at once, so random coincidences don't show up as findings. You can ask questions in plain language and get answers grounded in your own numbers. Then it closes the loop with **experiments**: say *"I want to exercise more"*, and the AI researches evidence-backed approaches on the web and proposes a concrete trial ("no meetings before 11 for two weeks"). It tracks your daily check-ins and measures whether your metrics actually moved compared with the weeks before.
 
-Developers already pay for tools that promise a better day (Oura, RescueTime, Notion) and are used to connecting accounts. YouAI is the layer on top that turns all that data into answers and decisions. Personal-data users become the entry point to a B2B product for coaches, therapists and team-wellbeing programmes, where clients share their data with a professional.
+Data-driven users already pay for tools that promise a better day (Oura, RescueTime, Notion) and are used to connecting accounts. YouAI is the layer on top that turns all that data into answers and decisions. Personal-data users become the entry point to a B2B product for coaches, therapists and team-wellbeing programmes, where clients share their data with a professional.
 
 <!--
 Models and Token Factory use (Required)
@@ -109,7 +109,7 @@ Link: [public slides link]
 Outline (5 minutes, all criteria covered):
 
 1. **Problem** (≈30 s): "Your data knows why you had a bad week. No app can tell you." Show the scattered apps.
-2. **Product and user** (≈30 s): YouAI in one sentence, the target user (developers optimising energy and output), how often they hit the problem.
+2. **Product and user** (≈30 s): YouAI in one sentence, the target user (data-driven people optimising energy and output), how often they hit the problem.
 3. **Live demo** (≈2 min): connect sample data and GitHub, then ask "why are my Mondays unproductive?" → the chat finds a pattern → "design an experiment to fix it" → it researches and creates one.
 4. **Tech and Token Factory** (≈40 s): Qwen3-235B in three roles (agent, structured extraction, verdicts); formats recognised once and reused; statistics computed in code, not by the model.
 5. **Measured advantage and responsible design** (≈40 s): the comparison table, per-user scoping, correlation-vs-causation guardrails.
