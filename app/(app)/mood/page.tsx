@@ -178,12 +178,11 @@ export default async function MoodPage() {
       <section>
         <SectionHeading
           title="Daily email"
-          description="A morning note with where your mood is, which way it is moving, and one or two things you might not have noticed."
+          description="A note with where your mood is, which way it is moving, and one or two things you might not have noticed. Sent by an admin — opt in here and you are on the list."
         />
         <Card>
           <MoodEmailSettings
             initialHour={row?.moodEmailHour ?? null}
-            timezone={user.timezone}
             configured={resendConfigured()}
           />
         </Card>

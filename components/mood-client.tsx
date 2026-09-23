@@ -102,16 +102,19 @@ export function MoodLogger({ initial }: { initial: number | null }) {
   );
 }
 
-const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
-
-/** Choose when the daily email arrives, in your own timezone — or turn it off. */
+/**
+ * Opt in or out of the mood email.
+ *
+ * There is no scheduler on this deployment, so there is no hour to choose —
+ * an admin sends the digest to everyone who has opted in. The stored value is
+ * still the hour column (null means off), so a per-person schedule can come
+ * back without a migration.
+ */
 export function MoodEmailSettings({
   initialHour,
-  timezone,
   configured,
 }: {
   initialHour: number | null;
-  timezone: string;
   configured: boolean;
 }) {
   const router = useRouter();
@@ -151,29 +154,11 @@ export function MoodEmailSettings({
           <input
             type="checkbox"
             checked={hour !== null}
-            onChange={(event) => update(event.target.checked ? (initialHour ?? 8) : null)}
+            onChange={(event) => update(event.target.checked ? 8 : null)}
             className="size-4 rounded border-border"
           />
-          Email me my mood every day
+          Send me the mood email
         </label>
-
-        {hour !== null ? (
-          <label className="flex items-center gap-2 text-sm text-muted">
-            at
-            <select
-              value={hour}
-              onChange={(event) => update(Number(event.target.value))}
-              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-text outline-none focus:border-border-strong"
-            >
-              {HOURS.map((option) => (
-                <option key={option} value={option}>
-                  {String(option).padStart(2, "0")}:00
-                </option>
-              ))}
-            </select>
-            {timezone}
-          </label>
-        ) : null}
 
         {busy ? <Loader2 className="size-3.5 animate-spin text-muted" aria-hidden /> : null}
         {saved && !busy ? <Check className="size-3.5 text-positive" aria-hidden /> : null}
