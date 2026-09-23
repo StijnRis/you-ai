@@ -41,11 +41,11 @@ Criterion: Technical execution and Token Factory use.
 
 All AI runs on Nebius Token Factory. Users can pick which open model the agent uses. The default is Qwen3-235B-A22B-Instruct-2507, chosen from the comparison below. It does three jobs:
 
-1. Chat agent. It calls tools on our backend to read your data, find correlations, compare groups, search the web (Tavily), and create and analyse experiments, with up to 10 tool calls per answer.
+1. Chat agent. It calls tools on our backend to read your data, find correlations, compare groups, search the web (Nebius's Tavily search API), and create and analyse experiments, with up to 10 tool calls per answer.
 2. Reading new file formats. For an export we haven't seen before, it writes a JSON conversion that maps the file onto our metrics, using Token Factory's JSON-schema output. The conversion is saved and reused for later files with the same shape.
 3. Experiment verdicts. When an experiment ends, it explains the before/during/after statistics in plain language.
 
-Qwen3-235B-A22B activates about 22B of its 235B parameters per token, so it is cheap enough to run on every chat turn, and it handles tool calls and strict JSON output well. No closed models are used. The statistics are computed in code, not by the model.
+Qwen3-235B-A22B activates about 22B of its 235B parameters per token, so it is cheap enough to run on every chat turn, and it handles tool calls and strict JSON output well. The product uses no closed models, and the statistics are computed in code, not by the model. Outside the product, we used Claude to help write the code and ElevenLabs for the visuals.
 
 <!--
 Measurable model advantage (Required)
