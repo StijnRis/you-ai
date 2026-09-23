@@ -1,7 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { listSources } from "@/lib/db/queries";
 import { apiAdapters } from "@/lib/adapters";
-import { githubOAuthApp } from "@/lib/adapters/github-oauth";
 import { Badge, Card, SectionHeading } from "@/components/ui";
 import {
   DisconnectButton,
@@ -9,6 +8,7 @@ import {
   SyncButton,
   WeatherConnect,
 } from "@/components/sources-client";
+import { GitHubMark } from "@/components/oauth-buttons";
 
 export default async function SourcesPage(props: PageProps<"/sources">) {
   const user = await requireUser();
@@ -91,34 +91,41 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                       fields={[]}
                       hint="Adds a year of made-up data. Disconnect removes it again."
                     />
-                  ) : adapter.provider === "github" && githubOAuthApp() ? (
-                    <div className="space-y-2">
+                  ) : adapter.provider === "github" ? (
+                    <div className="space-y-3">
                       <a
                         href="/api/connect/github"
-                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-text px-4 text-sm font-medium text-bg transition-opacity hover:opacity-90"
+                        className="inline-flex h-10 items-center gap-2.5 rounded-lg bg-[#24292f] px-5 text-sm font-medium text-white transition-opacity hover:opacity-90"
                       >
+                        <GitHubMark />
                         Connect with GitHub
                       </a>
                       <p className="text-xs text-muted">
-                        You approve read-only access on GitHub and come straight back here.
+                        You&apos;ll be sent to GitHub to approve read-only access, then straight back here.
                       </p>
+                      <details className="text-xs text-muted">
+                        <summary className="cursor-pointer hover:text-text">
+                          Use a personal access token instead
+                        </summary>
+                        <div className="mt-3">
+                          <SimpleConnect
+                            provider="github"
+                            label="GitHub"
+                            fields={[
+                              { key: "username", label: "Username", placeholder: "octocat" },
+                              {
+                                key: "token",
+                                label: "Token",
+                                placeholder: "ghp_…",
+                                secret: true,
+                                optional: true,
+                              },
+                            ]}
+                            hint="Create a classic token with no scopes at github.com/settings/tokens."
+                          />
+                        </div>
+                      </details>
                     </div>
-                  ) : adapter.provider === "github" ? (
-                    <SimpleConnect
-                      provider="github"
-                      label="GitHub"
-                      fields={[
-                        { key: "username", label: "Username", placeholder: "octocat" },
-                        {
-                          key: "token",
-                          label: "Token",
-                          placeholder: "ghp_…",
-                          secret: true,
-                          optional: true,
-                        },
-                      ]}
-                      hint="GitHub's API needs a token even for public activity. Create a classic token with no scopes at github.com/settings/tokens."
-                    />
                   ) : (
                     <SimpleConnect
                       provider="google-calendar"
