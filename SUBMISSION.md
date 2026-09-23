@@ -18,6 +18,8 @@ YouAI is for data-driven people who already track their life in many apps: commi
 
 YouAI puts everything on one timeline. It connects to GitHub, calendars, Spotify, weather, Apple Health, Google Fit and Samsung Health, and it imports any other export too. Under the GDPR every service has to let you download your data, so an LLM reads the CSV files in the export and maps each column to our database. Your gym's check-in history or a full Google Takeout works without us writing an integration for it.
 
+Most of your life is already tracked, so you rarely need to log anything by hand. You might think you have to record what you eat, but Albert Heijn already knows from your loyalty card, and you can export that and import it into YouAI. Your swimming sessions are in your calendar. Your gym logs every visit when you scan your card, and that can be exported too.
+
 YouAI then computes correlations across sources, with time lags and a correction for testing many pairs at once. You can open any correlation and see every data point behind it in a graph, so you can check it yourself. You can also ask questions in chat, and the answers use your own numbers.
 
 Experiments turn a finding into a change. Say you're tired every evening. The AI looks at your data, searches the web, finds that a cold shower in the morning may help, and sets up an experiment for the next few weeks. Afterwards the dashboard compares your mood, steps and other metrics with the weeks before. Mood comes from your smartwatch, or you enter it by hand; manual entries have their own overview.
