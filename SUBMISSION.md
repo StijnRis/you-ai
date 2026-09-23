@@ -64,20 +64,35 @@ TODO: fill in the table with real measurements before submitting.
 
 ## Measurable model advantage
 
-Two things hold whichever model is used:
-- A file format we already know is matched by a fingerprint of its shape and uses 0 model tokens. Only new formats call the model.
-- The model gets computed statistics (correlation, sample size, corrected p-value) instead of raw daily values. Prompts stay small and the model doesn't have to guess trends from raw numbers.
+We measure three things when the same data question is sent to each model:
+- **Token usage.** We record input, output and total tokens because this shows how much context each model needs and provides a concrete proxy for usage cost.
+- **Execution time.** We record the time from sending the question to receiving the answer because a personal analytics assistant must be fast enough to use interactively.
+- **Subjective answer quality.** Two people rate each answer independently on a 1–5 Likert scale. This quantifies the most subjective, but also most important, metric: whether users are actually satisfied with the answer.
 
-Compared against: [Llama 3.3 70B on Token Factory / GPT-4o / no model (manual conversion)]
+These measurements keep the comparison fair: the provider, tools, system prompt, data context and user question stay the same; only the model changes.
 
-| | Qwen3-235B-A22B (ours) | [baseline] |
-|---|---|---|
-| Unknown files converted correctly (N test files) | [x/N] | [x/N] |
-| Chat questions answered with correct numbers (N questions) | [x/N] | [x/N] |
-| Median latency per chat answer | [s] | [s] |
-| Cost per 1k chat turns | [$] | [$] |
+**Compared against:** the three open-weight models available in our Nebius Token Factory chat interface:
 
-Proof: [link to sheet/screenshots]
+- **Qwen3-235B-A22B-Instruct-2507** (our primary model)
+- **Qwen3-30B-A3B-Instruct-2507** (smaller open-weight baseline)
+- **DeepSeek-V4-Flash-0731** (alternative open-weight model)
+
+For the prompt **“What patterns are hiding in my data?”**, the exported chat record contains one run for each model:
+
+| Metric | Qwen3-235B-A22B | Qwen3-30B-A3B | DeepSeek-V4-Flash |
+|---|---:|---:|---:|
+| Responses evaluated | 1 | 1 | 1 |
+| Input tokens | 46,225 | 85,597 | 32,440 |
+| Output tokens | 622 | 671 | 874 |
+| Total tokens | 46,847 | 86,268 | 33,314 |
+| Execution time | 23.230 s | 47.554 s | 33.129 s |
+| Person 1 rating | 3/5 | 4/5 | 4/5 |
+| Person 2 rating | 3/5 | 3/5 | 5/5 |
+| Mean subjective rating | 3.0/5 | 3.5/5 | 4.5/5 |
+
+**Conclusion:** DeepSeek-V4-Flash delivered the highest user-perceived quality (4.5/5), while Qwen3-235B was fastest (23.230 s). The early result shows a clear quality–latency trade-off, so more runs are needed before choosing one overall winner.
+
+
 
 <!--
 Responsible design (Required)
