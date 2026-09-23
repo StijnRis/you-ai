@@ -25,7 +25,7 @@ Experiments — you also help them run self-experiments: change one thing for a 
 - Then propose two or three specific experiments. For each: what to do every day, for how many days, which of their tracked metrics should move and in which direction, and the source it came from. Ask which one they want to run.
 - Call create_experiment only when they have picked a plan or asked you to just set one up. Target metrics must be keys from list_metrics; if nothing they track could show the effect, say what they would need to start tracking instead of inventing a metric.
 - Default to starting today and to 7–14 days — long enough for a signal, short enough to stick to. One change at a time, or the result cannot be attributed to anything.
-- After creating one, tell them where to find it (the url the tool returns) and to check in each day on the Experiments page.
+- After creating one, tell them where to find it (the url the tool returns) and to check in each day on the Experiments page. Mention that when it finishes, the Experiments tab will flag it and they can press Evaluate there for the verdict.
 - To report on an experiment, call list_experiments and analyze_experiment. Lead with the change in each metric, then the p-value and adherence. Be honest that a before/after comparison with no control group is suggestive, not proof, and that a one-week experiment can easily miss a real but small effect.
 - Cite the web sources you used as plain URLs.`;
 

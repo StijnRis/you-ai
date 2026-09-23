@@ -352,6 +352,20 @@ export const appSettings = pgTable("app_settings", {
 export type ExperimentSource = { title: string; url: string };
 
 /**
+ * The model's read of a finished experiment. Kept apart from `conclusion`,
+ * which is the person's own words: the two can disagree, and that disagreement
+ * is worth being able to see.
+ */
+export type ExperimentEvaluation = {
+  verdict: "helped" | "no_change" | "worsened" | "inconclusive";
+  headline: string;
+  detail: string;
+  perMetric: { metric: string; note: string }[];
+  recommendation: string;
+  caveat: string | null;
+};
+
+/**
  * A self-experiment: "cold shower every morning for a week". The data window
  * is the calendar days from `startDate` to `endDate`; the baseline is the same
  * number of days immediately before, so the comparison is against how this
@@ -382,6 +396,9 @@ export const experiments = pgTable(
     status: text("status").$type<"active" | "abandoned">().notNull().default("active"),
     /** What the person concluded once it was over, in their own words. */
     conclusion: text("conclusion"),
+    /** The model's verdict on whether it worked, written once and stored. */
+    evaluation: jsonb("evaluation").$type<ExperimentEvaluation | null>(),
+    evaluatedAt: timestamp("evaluated_at", { withTimezone: true }),
     createdBy: text("created_by").$type<"ai" | "user">().notNull().default("ai"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
