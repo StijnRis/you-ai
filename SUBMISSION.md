@@ -20,6 +20,8 @@ Today people cope by guessing, or by exporting CSVs into a spreadsheet they aban
 
 **YouAI** connects those sources (GitHub, any calendar, Spotify, weather, Apple Health, Google Fit, Samsung Health or any file export) into one timeline. It runs proper statistics across them: correlations with time lags and a correction for testing many pairs at once, so random coincidences don't show up as findings. You can ask questions in plain language and get answers grounded in your own numbers. Then it closes the loop with **experiments**: say *"I want to exercise more"*, and the AI researches evidence-backed approaches on the web and proposes a concrete trial ("no meetings before 11 for two weeks"). It tracks your daily check-ins and measures whether your metrics actually moved compared with the weeks before.
 
+**It imports data from any source.** Under the GDPR, every service that holds your data has to let you export it. YouAI turns that into its data pipeline: drop in any export and an LLM reads every CSV file in it, works out what each column means, and routes it to the right place in our database. No per-app integration is needed. Your local gym's check-in history, your entire Google Takeout, or data from any app that has ever been built can go in, because under the GDPR all of them have to hand it over.
+
 Data-driven users already pay for tools that promise a better day (Oura, RescueTime, Notion) and are used to connecting accounts. YouAI is the layer on top that turns all that data into answers and decisions. Personal-data users become the entry point to a B2B product for coaches, therapists and team-wellbeing programmes, where clients share their data with a professional.
 
 <!--
