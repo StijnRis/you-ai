@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { ChevronDown, ShieldCheck, Trash2, UserX } from "lucide-react";
+import { ChevronDown, Loader2, ShieldCheck, Trash2, UserX } from "lucide-react";
 import {
   deleteAccountAsAdminAction,
+  sendMoodEmailsAction,
   setDisabledAction,
   setRoleAction,
   updateSettingsAction,
@@ -222,5 +223,44 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         <SubmitButton pending={pending}>Save settings</SubmitButton>
       </form>
     </Card>
+  );
+}
+
+/**
+ * Send the daily mood email to everyone, now.
+ *
+ * Confirmed before it fires, because unlike the rest of this panel it reaches
+ * people outside the app and cannot be taken back.
+ */
+export function SendMoodEmailsButton({ eligible }: { eligible: number }) {
+  const [state, action, pending] = useActionState(sendMoodEmailsAction, {});
+
+  return (
+    <form
+      action={action}
+      onSubmit={(event) => {
+        if (!confirm(`Send the daily mood email to ${eligible} ${eligible === 1 ? "person" : "people"} now?`)) {
+          event.preventDefault();
+        }
+      }}
+      className="space-y-3"
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={pending || eligible === 0}
+          className="flex h-9 items-center gap-2 rounded-lg bg-text px-4 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-30"
+        >
+          {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
+          Send mood email to everyone
+        </button>
+        <p className="text-sm text-muted">
+          {eligible} {eligible === 1 ? "person has" : "people have"} the daily email switched on.
+        </p>
+      </div>
+
+      {state.success ? <p className="text-sm text-positive">{state.success}</p> : null}
+      {state.error ? <p className="text-sm text-danger">{state.error}</p> : null}
+    </form>
   );
 }

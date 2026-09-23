@@ -1,11 +1,15 @@
 "use server";
 
-import { and, count, eq, ne, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accounts, dailyMetrics, events, imports, sources, users } from "@/lib/db/schema";
+import { localDateOf } from "@/lib/events/time";
+import { renderMoodDigest } from "@/lib/email/mood-digest";
+import { resendConfigured, sendEmail } from "@/lib/email/resend";
+import { getMoodStats } from "@/lib/mood/stats";
 import { setSetting } from "@/lib/settings";
 import { SETTINGS, SETTING_KEYS } from "@/lib/settings-def";
 import type { ActionState } from "@/lib/actions/account";
@@ -247,4 +251,77 @@ export async function updateSettingsAction(
 
   revalidatePath("/admin");
   return problems.length ? { error: problems.join(" · ") } : { success: "Settings saved." };
+}
+
+/**
+ * Send the daily mood email to everyone who has it switched on, right now,
+ * instead of waiting for each person's hour to come round.
+ *
+ * Opting out is still honoured: `mood_email_hour` being null means off, and a
+ * disabled account or one with no address is skipped. An admin button is for
+ * testing and for the occasional nudge — not a way around someone's choice.
+ */
+export async function sendMoodEmailsAction(): Promise<ActionState> {
+  await requireAdmin();
+
+  if (!resendConfigured()) {
+    return { error: "RESEND_API_KEY is not set on this deployment." };
+  }
+
+  const recipients = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      timezone: users.timezone,
+      hour: users.moodEmailHour,
+      disabledAt: users.disabledAt,
+    })
+    .from(users);
+
+  const now = new Date();
+  const appUrl = process.env.APP_URL ?? "https://youai.nl";
+  const problems: string[] = [];
+  let sent = 0;
+  let skipped = 0;
+
+  for (const recipient of recipients) {
+    if (!recipient.email || recipient.disabledAt || recipient.hour === null) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      const today = localDateOf(now, recipient.timezone);
+      const stats = await getMoodStats(recipient.id, today);
+      const digest = renderMoodDigest({ stats, today, appUrl });
+
+      await sendEmail({
+        to: recipient.email,
+        subject: digest.subject,
+        html: digest.html,
+        text: digest.text,
+      });
+      sent += 1;
+    } catch (error) {
+      // One bad address must not stop the rest of the broadcast.
+      problems.push(`${recipient.email}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  revalidatePath("/admin");
+
+  const summary = `Sent ${sent} ${sent === 1 ? "email" : "emails"}${skipped ? `, skipped ${skipped} (opted out or no address)` : ""}.`;
+  return problems.length
+    ? { error: `${summary} ${problems.length} failed — ${problems.slice(0, 3).join(" · ")}` }
+    : { success: summary };
+}
+
+/** How many people would receive a broadcast right now. */
+export async function countMoodEmailRecipients(): Promise<number> {
+  await requireAdmin();
+  const [row] = await db
+    .select({ total: count() })
+    .from(users)
+    .where(and(isNotNull(users.moodEmailHour), isNull(users.disabledAt), isNotNull(users.email)));
+  return row?.total ?? 0;
 }

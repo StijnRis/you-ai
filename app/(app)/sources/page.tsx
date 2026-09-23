@@ -1,11 +1,14 @@
 import { MapPin } from "lucide-react";
+import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { listSources } from "@/lib/db/queries";
 import { apiAdapters } from "@/lib/adapters";
+import { spotifyCallbackUrlFrom } from "@/lib/adapters/spotify";
 import { Badge, Card, SectionHeading } from "@/components/ui";
 import {
   DisconnectButton,
   SimpleConnect,
+  SpotifyConnect,
   SyncButton,
   WeatherConnect,
 } from "@/components/sources-client";
@@ -15,6 +18,13 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
   const user = await requireUser();
   const rows = await listSources(user.id);
   const { error, connected } = await props.searchParams;
+
+  // Shown in the Spotify instructions so the redirect URI can be copied exactly.
+  const headerList = await headers();
+  const proto = headerList.get("x-forwarded-proto") ?? "http";
+  const spotifyCallbackUrl = spotifyCallbackUrlFrom(
+    `${proto}://${headerList.get("host") ?? "localhost:3000"}`,
+  );
 
   const apiSources = rows.filter((row) => row.kind === "api");
   const importSources = rows.filter((row) => row.kind === "import");
@@ -122,17 +132,7 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                       hint="Adds a year of made-up data. Disconnect removes it again."
                     />
                   ) : adapter.provider === "spotify" ? (
-                    <div className="space-y-3">
-                      <a
-                        href="/api/connect/spotify"
-                        className="inline-flex h-10 items-center gap-2.5 rounded-lg bg-[#1db954] px-5 text-sm font-medium text-black transition-opacity hover:opacity-90"
-                      >
-                        Connect with Spotify
-                      </a>
-                      <p className="text-xs text-muted">
-                        You&apos;ll be sent to Spotify to approve access to your recently played tracks.
-                      </p>
-                    </div>
+                    <SpotifyConnect callbackUrl={spotifyCallbackUrl} />
                   ) : adapter.provider === "mood-tracker" ? (
                     <SimpleConnect
                       provider="mood-tracker"

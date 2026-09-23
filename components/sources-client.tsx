@@ -321,3 +321,87 @@ export function DisconnectButton({
     </div>
   );
 }
+
+/**
+ * Spotify needs your own app, because Spotify only lets an app's own developer
+ * authorise it until it is approved for extended quota — so a shared YouAI app
+ * could not read your plays.
+ *
+ * A plain form POST rather than fetch(): the secret then never reaches the
+ * query string, and the response can redirect straight to Spotify's consent
+ * screen instead of bouncing through client-side navigation.
+ */
+export function SpotifyConnect({ callbackUrl }: { callbackUrl: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <form method="POST" action="/api/connect/spotify" className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block text-xs text-muted">
+          Client ID
+          <input
+            name="clientId"
+            required
+            autoComplete="off"
+            placeholder="4f9a…"
+            className="mt-1 block h-9 w-56 rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none focus:border-border-strong"
+          />
+        </label>
+        <label className="block text-xs text-muted">
+          Client secret
+          <input
+            name="clientSecret"
+            type="password"
+            required
+            autoComplete="off"
+            placeholder="••••••••"
+            className="mt-1 block h-9 w-56 rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none focus:border-border-strong"
+          />
+        </label>
+        <button
+          type="submit"
+          className="flex h-9 items-center gap-2 rounded-lg bg-[#1db954] px-5 text-sm font-medium text-black transition-opacity hover:opacity-90"
+        >
+          Connect with Spotify
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="text-xs text-muted underline-offset-2 hover:text-text hover:underline"
+      >
+        Where do I get these?
+      </button>
+
+      {open ? (
+        <ol className="max-w-xl list-decimal space-y-1 pl-4 text-xs text-muted">
+          <li>
+            Open{" "}
+            <a
+              href="https://developer.spotify.com/dashboard"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-text"
+            >
+              developer.spotify.com/dashboard
+            </a>{" "}
+            and click <strong>Create app</strong>. Name and description can be anything.
+          </li>
+          <li>
+            Set the Redirect URI to exactly{" "}
+            <code className="rounded bg-surface-2 px-1 py-0.5">{callbackUrl}</code>, and tick the{" "}
+            <strong>Web API</strong> box.
+          </li>
+          <li>
+            Open the app&rsquo;s <strong>Settings</strong> and copy the Client ID, then{" "}
+            <strong>View client secret</strong>.
+          </li>
+          <li>
+            Paste both above. They are stored on the source so syncs can refresh your token.
+          </li>
+        </ol>
+      ) : null}
+    </form>
+  );
+}

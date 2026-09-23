@@ -1,15 +1,16 @@
 import { requireAdmin } from "@/lib/auth";
-import { getInstanceStats, listAccounts } from "@/lib/actions/admin";
+import { countMoodEmailRecipients, getInstanceStats, listAccounts } from "@/lib/actions/admin";
 import { getSettings } from "@/lib/settings";
 import { Card, SectionHeading, Stat } from "@/components/ui";
-import { AccountsTable, SettingsForm } from "@/components/admin-panel";
+import { AccountsTable, SendMoodEmailsButton, SettingsForm } from "@/components/admin-panel";
 
 export default async function AdminPage() {
   const admin = await requireAdmin();
-  const [accounts, stats, settings] = await Promise.all([
+  const [accounts, stats, settings, moodRecipients] = await Promise.all([
     listAccounts(),
     getInstanceStats(),
     getSettings(),
+    countMoodEmailRecipients(),
   ]);
 
   return (
@@ -37,6 +38,16 @@ export default async function AdminPage() {
           description="Disabling blocks sign-in but keeps the data. Deleting does not."
         />
         <AccountsTable accounts={accounts} currentAdminId={admin.id} />
+      </section>
+
+      <section>
+        <SectionHeading
+          title="Mood email"
+          description="The daily digest normally goes out at each person's own chosen hour. This sends it to everyone who has it switched on, right now."
+        />
+        <Card>
+          <SendMoodEmailsButton eligible={moodRecipients} />
+        </Card>
       </section>
 
       <section>
