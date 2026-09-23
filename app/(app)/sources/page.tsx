@@ -39,12 +39,17 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
 
         <div className="space-y-3">
           {Object.values(apiAdapters).map((adapter) => {
-            const source = apiSources.find((row) => row.provider === adapter.provider);
+            const connected = apiSources.filter((row) => row.provider === adapter.provider);
+            const source = connected[0];
+            // Calendars can be added more than once — work, personal, shared.
+            const showConnect = !source || adapter.multiple;
             return (
               <Card key={adapter.provider}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="max-w-xl">
-                    <h3 className="font-medium">{source?.label ?? adapter.label}</h3>
+                    <h3 className="font-medium">
+                      {adapter.multiple ? adapter.label : (source?.label ?? adapter.label)}
+                    </h3>
                     <p className="mt-1 text-sm text-muted">{adapter.description}</p>
                     <p className="mt-2 text-xs text-muted">
                       Produces{" "}
@@ -55,14 +60,15 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                     </p>
                   </div>
                   <Badge tone={source ? "positive" : "neutral"}>
-                    {source ? "connected" : "direct API"}
+                    {connected.length > 1 ? `${connected.length} connected` : source ? "connected" : "direct API"}
                   </Badge>
                 </div>
 
-                <div className="mt-5 border-t border-border pt-5">
-                  {source ? (
+                {connected.map((source) => (
+                  <div key={source.id} className="mt-5 border-t border-border pt-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
+                        {adapter.multiple ? <p className="text-sm font-medium">{source.label}</p> : null}
                         <p className="text-xs text-muted">
                           {source.eventCount.toLocaleString()} records imported ·{" "}
                           {source.lastSyncAt
@@ -82,7 +88,12 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                         />
                       </div>
                     </div>
-                  ) : adapter.provider === "open-meteo" ? (
+                  </div>
+                ))}
+
+                {showConnect ? (
+                <div className="mt-5 border-t border-border pt-5">
+                  {adapter.provider === "open-meteo" ? (
                     <WeatherConnect />
                   ) : adapter.provider === "demo" ? (
                     <SimpleConnect
@@ -143,6 +154,7 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                       provider="google-calendar"
                       label="Google Calendar"
                       fields={[
+                        { key: "name", label: "Name", placeholder: "Work", optional: true },
                         {
                           key: "icalUrl",
                           label: "Secret iCal address",
@@ -151,10 +163,11 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                           wide: true,
                         },
                       ]}
-                      hint="In Google Calendar: Settings → your calendar → Integrate calendar → Secret address in iCal format."
+                      hint={`${source ? "Add another calendar. " : ""}In Google Calendar: Settings → your calendar → Integrate calendar → Secret address in iCal format. Any .ics link works (Outlook, Apple).`}
                     />
                   )}
                 </div>
+                ) : null}
               </Card>
             );
           })}
