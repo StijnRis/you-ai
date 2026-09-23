@@ -1,12 +1,14 @@
 import { requireUser } from "@/lib/auth";
 import { listSources } from "@/lib/db/queries";
 import { apiAdapters } from "@/lib/adapters";
+import { githubOAuthApp } from "@/lib/adapters/github-oauth";
 import { Badge, Card, SectionHeading } from "@/components/ui";
 import { SimpleConnect, SyncButton, WeatherConnect } from "@/components/sources-client";
 
-export default async function SourcesPage() {
+export default async function SourcesPage(props: PageProps<"/sources">) {
   const user = await requireUser();
   const rows = await listSources(user.id);
+  const { error, connected } = await props.searchParams;
 
   const apiSources = rows.filter((row) => row.kind === "api");
   const importSources = rows.filter((row) => row.kind === "import");
@@ -18,6 +20,17 @@ export default async function SourcesPage() {
           title="Sources"
           description="Two kinds of adapter feed the same event store: ones that pull from a service directly, and ones fed by a data export."
         />
+
+        {typeof error === "string" ? (
+          <p className="mb-3 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            {error}
+          </p>
+        ) : null}
+        {connected === "github" ? (
+          <p className="mb-3 rounded-lg border border-positive/30 bg-positive/5 px-3 py-2 text-sm text-positive">
+            GitHub connected and synced.
+          </p>
+        ) : null}
 
         <div className="space-y-3">
           {Object.values(apiAdapters).map((adapter) => {
@@ -46,9 +59,10 @@ export default async function SourcesPage() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-xs text-muted">
+                          {source.eventCount.toLocaleString()} records imported ·{" "}
                           {source.lastSyncAt
-                            ? `Last synced ${source.lastSyncAt.toLocaleString()}`
-                            : "Never synced"}
+                            ? `last synced ${source.lastSyncAt.toLocaleString()}`
+                            : "never synced"}
                         </p>
                         {source.lastSyncError ? (
                           <p className="mt-1 text-xs text-danger">{source.lastSyncError}</p>
@@ -58,6 +72,18 @@ export default async function SourcesPage() {
                     </div>
                   ) : adapter.provider === "open-meteo" ? (
                     <WeatherConnect />
+                  ) : adapter.provider === "github" && githubOAuthApp() ? (
+                    <div className="space-y-2">
+                      <a
+                        href="/api/connect/github"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-text px-4 text-sm font-medium text-bg transition-opacity hover:opacity-90"
+                      >
+                        Connect with GitHub
+                      </a>
+                      <p className="text-xs text-muted">
+                        You approve read-only access on GitHub and come straight back here.
+                      </p>
+                    </div>
                   ) : adapter.provider === "github" ? (
                     <SimpleConnect
                       provider="github"
@@ -106,7 +132,12 @@ export default async function SourcesPage() {
           <div className="space-y-2">
             {importSources.map((source) => (
               <Card key={source.id} className="flex items-center justify-between gap-3">
-                <p className="font-medium">{source.label}</p>
+                <div>
+                  <p className="font-medium">{source.label}</p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {source.eventCount.toLocaleString()} records imported
+                  </p>
+                </div>
                 <Badge tone="neutral">data dump</Badge>
               </Card>
             ))}
