@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Plug,
   Shield,
+  Smile,
   UserRound,
   Wand2,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/insights", label: "Insights", icon: BarChart3 },
+  { href: "/mood", label: "Mood", icon: Smile },
   { href: "/data", label: "Data", icon: Database },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/experiments", label: "Experiments", icon: FlaskConical },

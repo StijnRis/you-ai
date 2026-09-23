@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/mood-email",
+      "schedule": "0 * * * *"
     }
   ]
 }

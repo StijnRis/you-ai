@@ -114,6 +114,13 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                         You&apos;ll be sent to Spotify to approve access to your recently played tracks.
                       </p>
                     </div>
+                  ) : adapter.provider === "mood-tracker" ? (
+                    <SimpleConnect
+                      provider="mood-tracker"
+                      label="Mood tracker"
+                      fields={[]}
+                      hint="Backfills a year of simulated check-ins. Your own logs from the Mood page sit on the same series."
+                    />
                   ) : adapter.provider === "github" ? (
                     <div className="space-y-3">
                       <a
