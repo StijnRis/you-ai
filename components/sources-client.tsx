@@ -9,11 +9,16 @@ import { Loader2, MapPin, RefreshCw, Unplug } from "lucide-react";
  * hostile, so the browser's geolocation fills them in — but the fields stay
  * editable, because people also want the weather where they *were*.
  */
-export function WeatherConnect() {
+export function WeatherConnect({
+  existing,
+}: {
+  /** When set, the form updates this source's location instead of connecting. */
+  existing?: { sourceId: string; latitude?: number; longitude?: number; placeName?: string };
+} = {}) {
   const router = useRouter();
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-  const [placeName, setPlaceName] = useState("");
+  const [latitude, setLatitude] = useState(existing?.latitude?.toString() ?? "");
+  const [longitude, setLongitude] = useState(existing?.longitude?.toString() ?? "");
+  const [placeName, setPlaceName] = useState(existing?.placeName ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +44,8 @@ export function WeatherConnect() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/sources", {
-        method: "POST",
+      const response = await fetch(existing ? `/api/sources/${existing.sourceId}` : "/api/sources", {
+        method: existing ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           provider: "open-meteo",
@@ -56,10 +61,10 @@ export function WeatherConnect() {
 
       if (payload.error) throw new Error(payload.error);
       if (payload.syncError) {
-        setError(`Connected, but the first sync failed: ${payload.syncError}`);
+        setError(`${existing ? "Updated" : "Connected"}, but the sync failed: ${payload.syncError}`);
       } else {
         setMessage(
-          `Connected. Backfilled ${payload.sync?.eventsStored?.toLocaleString() ?? 0} readings across ${payload.sync?.daysTouched ?? 0} days.`,
+          `${existing ? "Location updated" : "Connected"}. Backfilled ${payload.sync?.eventsStored?.toLocaleString() ?? 0} readings across ${payload.sync?.daysTouched ?? 0} days.`,
         );
       }
       router.refresh();
@@ -100,14 +105,16 @@ export function WeatherConnect() {
           className="flex h-9 items-center gap-2 rounded-lg bg-text px-4 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-30"
         >
           {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
-          Connect
+          {existing ? "Update location" : "Connect"}
         </button>
       </div>
 
       {message ? <p className="text-sm text-positive">{message}</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       <p className="text-xs text-muted">
-        The first sync backfills a year, so there is something to correlate against immediately.
+        {existing
+          ? "Readings for the old location are replaced with a year of history for the new one."
+          : "The first sync backfills a year, so there is something to correlate against immediately."}
       </p>
     </div>
   );
