@@ -3,7 +3,12 @@ import { listSources } from "@/lib/db/queries";
 import { apiAdapters } from "@/lib/adapters";
 import { githubOAuthApp } from "@/lib/adapters/github-oauth";
 import { Badge, Card, SectionHeading } from "@/components/ui";
-import { SimpleConnect, SyncButton, WeatherConnect } from "@/components/sources-client";
+import {
+  DisconnectButton,
+  SimpleConnect,
+  SyncButton,
+  WeatherConnect,
+} from "@/components/sources-client";
 
 export default async function SourcesPage(props: PageProps<"/sources">) {
   const user = await requireUser();
@@ -68,7 +73,13 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                           <p className="mt-1 text-xs text-danger">{source.lastSyncError}</p>
                         ) : null}
                       </div>
-                      <SyncButton sourceId={source.id} />
+                      <div className="flex items-center gap-2">
+                        <SyncButton sourceId={source.id} />
+                        <DisconnectButton
+                          sourceId={source.id}
+                          label={source.label ?? adapter.label}
+                        />
+                      </div>
                     </div>
                   ) : adapter.provider === "open-meteo" ? (
                     <WeatherConnect />

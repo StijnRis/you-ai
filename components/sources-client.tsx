@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, MapPin, RefreshCw } from "lucide-react";
+import { Loader2, MapPin, RefreshCw, Unplug } from "lucide-react";
 
 /**
  * Connecting weather needs coordinates. Asking for a latitude and longitude is
@@ -248,5 +248,52 @@ export function SyncButton({ sourceId }: { sourceId: string }) {
       <RefreshCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} aria-hidden />
       Sync now
     </button>
+  );
+}
+
+/**
+ * Removing the source drops the stored config (tokens, calendar URLs) but
+ * leaves the events it already ingested, so the confirm spells that out.
+ */
+export function DisconnectButton({ sourceId, label }: { sourceId: string; label: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function disconnect() {
+    if (!confirm(`Disconnect ${label}? Events already synced stay — only the connection is removed.`)) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/sources/${sourceId}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (payload.error) throw new Error(payload.error);
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onClick={disconnect}
+        disabled={busy}
+        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-danger disabled:opacity-50"
+      >
+        {busy ? (
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+        ) : (
+          <Unplug className="size-3.5" aria-hidden />
+        )}
+        Disconnect
+      </button>
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
+    </div>
   );
 }
