@@ -68,6 +68,12 @@ export const users = pgTable("user", {
   timezone: text("timezone").notNull().default("UTC"),
   latitude: doublePrecision("latitude"),
   longitude: doublePrecision("longitude"),
+  /**
+   * Hour of the user's local day to send the daily mood email, 0-23. Null
+   * means the email is off, so one column carries both the switch and the
+   * schedule.
+   */
+  moodEmailHour: smallint("mood_email_hour").default(8),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

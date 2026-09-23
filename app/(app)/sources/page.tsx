@@ -1,3 +1,4 @@
+import { MapPin } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { listSources } from "@/lib/db/queries";
 import { apiAdapters } from "@/lib/adapters";
@@ -69,6 +70,12 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         {adapter.multiple ? <p className="text-sm font-medium">{source.label}</p> : null}
+                        {adapter.provider === "open-meteo" ? (
+                          <p className="mb-0.5 flex items-center gap-1.5 text-sm">
+                            <MapPin className="size-3.5 text-muted" aria-hidden />
+                            {weatherPlace(source.config)}
+                          </p>
+                        ) : null}
                         <p className="text-xs text-muted">
                           {source.eventCount.toLocaleString()} records imported ·{" "}
                           {source.lastSyncAt
@@ -88,6 +95,18 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                         />
                       </div>
                     </div>
+                    {adapter.provider === "open-meteo" ? (
+                      <details className="mt-3 text-sm">
+                        <summary className="cursor-pointer text-xs text-muted hover:text-text">
+                          Change location
+                        </summary>
+                        <div className="mt-3">
+                          <WeatherConnect
+                            existing={{ sourceId: source.id, ...(source.config as WeatherPlace) }}
+                          />
+                        </div>
+                      </details>
+                    ) : null}
                   </div>
                 ))}
 
@@ -114,6 +133,13 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                         You&apos;ll be sent to Spotify to approve access to your recently played tracks.
                       </p>
                     </div>
+                  ) : adapter.provider === "mood-tracker" ? (
+                    <SimpleConnect
+                      provider="mood-tracker"
+                      label="Mood tracker"
+                      fields={[]}
+                      hint="Backfills a year of simulated check-ins. Your own logs from the Mood page sit on the same series."
+                    />
                   ) : adapter.provider === "github" ? (
                     <div className="space-y-3">
                       <a
@@ -197,4 +223,15 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
       ) : null}
     </div>
   );
+}
+
+type WeatherPlace = { latitude?: number; longitude?: number; placeName?: string };
+
+function weatherPlace(config: unknown): string {
+  const { latitude, longitude, placeName } = (config ?? {}) as WeatherPlace;
+  const coords =
+    typeof latitude === "number" && typeof longitude === "number"
+      ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+      : "No coordinates";
+  return placeName ? `${placeName} (${coords})` : coords;
 }

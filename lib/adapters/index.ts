@@ -4,6 +4,7 @@ import { githubAdapter } from "@/lib/adapters/github";
 import { calendarAdapter } from "@/lib/adapters/calendar";
 import { demoAdapter } from "@/lib/adapters/demo";
 import { spotifyAdapter } from "@/lib/adapters/spotify";
+import { moodAdapter } from "@/lib/adapters/mood";
 
 /** Every live API adapter, keyed by the provider id stored on `sources`. */
 export const apiAdapters: Record<string, ApiAdapter<never>> = {
@@ -12,6 +13,7 @@ export const apiAdapters: Record<string, ApiAdapter<never>> = {
   [calendarAdapter.provider]: calendarAdapter as ApiAdapter<never>,
   [spotifyAdapter.provider]: spotifyAdapter as ApiAdapter<never>,
   [demoAdapter.provider]: demoAdapter as ApiAdapter<never>,
+  [moodAdapter.provider]: moodAdapter as ApiAdapter<never>,
 };
 
 export function getAdapter(provider: string) {

@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "mood_email_hour" smallint DEFAULT 8;
