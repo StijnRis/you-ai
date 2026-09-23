@@ -14,6 +14,16 @@ import {
   summarize,
   type DailySeries,
 } from "@/lib/stats/correlate";
+import { shiftLocalDate } from "@/lib/events/time";
+import { durationOf, phaseOf } from "@/lib/experiments/analyze";
+import {
+  changeExperiment,
+  createExperiment,
+  getExperimentReport,
+  listExperiments,
+  todayFor,
+} from "@/lib/experiments/store";
+import { isWebSearchConfigured, searchWeb } from "@/lib/research/tavily";
 
 /**
  * The tools the chat uses to answer questions about someone's data.
@@ -196,6 +206,174 @@ export function buildTools(ctx: ToolContext) {
           durationS: row.durationS,
           meta: row.meta,
         }));
+      },
+    }),
+
+    search_web: tool({
+      description:
+        "Search the web for evidence-based ways to reach a goal — habits, interventions, what studies found and how big the effect was. Use it before proposing an experiment, so the idea rests on something better than a hunch. Returns page extracts with URLs; cite the URLs you rely on.",
+      inputSchema: z.object({
+        query: z
+          .string()
+          .min(3)
+          .describe("A focused search query, e.g. 'cold shower effect on sleep quality study'"),
+        depth: z
+          .enum(["basic", "advanced"])
+          .default("basic")
+          .describe("advanced is slower but digs further; use it when basic finds nothing solid"),
+      }),
+      execute: async ({ query, depth }) => {
+        if (!isWebSearchConfigured()) {
+          return {
+            error:
+              "Web search is not configured (TAVILY_API_KEY missing). Answer from general knowledge and say so.",
+          };
+        }
+        try {
+          return await searchWeb(query, { depth, maxResults: 5 });
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : String(error) };
+        }
+      },
+    }),
+
+    list_experiments: tool({
+      description:
+        "List this person's self-experiments — past, running and scheduled — with their dates, phase and the metrics each one is judged on.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const today = todayFor(ctx.timezone);
+        const rows = await listExperiments(ctx.userId);
+        return {
+          today,
+          experiments: rows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            intervention: row.intervention,
+            hypothesis: row.hypothesis,
+            startDate: row.startDate,
+            endDate: row.endDate,
+            days: durationOf(row),
+            phase: phaseOf(row, today),
+            targetMetrics: row.targetMetrics,
+            conclusion: row.conclusion,
+          })),
+        };
+      },
+    }),
+
+    create_experiment: tool({
+      description:
+        "Create a self-experiment: one concrete change, done daily for a fixed number of days, judged on metrics already being tracked. The app compares those metrics during the experiment against the same number of days just before it. Only call this once the person has agreed to a specific plan, or has asked you outright to set one up.",
+      inputSchema: z.object({
+        title: z.string().min(3).max(80).describe("Short name, e.g. 'Cold showers for a week'"),
+        intervention: z
+          .string()
+          .min(5)
+          .describe("Exactly what to do each day, specific enough to tick off: '2–3 minutes of cold water at the end of the morning shower'"),
+        hypothesis: z
+          .string()
+          .min(5)
+          .describe("The expected, measurable effect: 'Mood will be higher and resting heart rate lower than in the week before'"),
+        rationale: z
+          .string()
+          .optional()
+          .describe("Why this is worth trying — a two- or three-sentence summary of the evidence found"),
+        sources: z
+          .array(z.object({ title: z.string(), url: z.string().url() }))
+          .max(8)
+          .default([])
+          .describe("The web pages the idea came from, from search_web"),
+        targetMetrics: z
+          .array(z.string())
+          .min(1)
+          .max(6)
+          .describe("Metric keys from list_metrics that should move if the hypothesis is right"),
+        durationDays: z
+          .number()
+          .int()
+          .min(3)
+          .max(90)
+          .describe("How many days to run it — 7 to 21 is usual"),
+        startDate: dateSchema.optional().describe("First day, YYYY-MM-DD. Defaults to today."),
+      }),
+      execute: async (input) => {
+        const known = new Set((await getMetricOverview(ctx.userId)).map((metric) => metric.key));
+        const tracked = input.targetMetrics.filter((key) => known.has(key));
+        const untracked = input.targetMetrics.filter((key) => !known.has(key));
+        if (tracked.length === 0) {
+          return {
+            error: `None of ${input.targetMetrics.join(", ")} are tracked, so the experiment could not be measured. Pick keys from list_metrics.`,
+          };
+        }
+
+        const startDate = input.startDate ?? todayFor(ctx.timezone);
+        const row = await createExperiment(ctx.userId, {
+          title: input.title,
+          intervention: input.intervention,
+          hypothesis: input.hypothesis,
+          rationale: input.rationale,
+          sources: input.sources,
+          targetMetrics: tracked,
+          startDate,
+          endDate: shiftLocalDate(startDate, input.durationDays - 1),
+          createdBy: "ai",
+        });
+
+        return {
+          id: row.id,
+          title: row.title,
+          startDate: row.startDate,
+          endDate: row.endDate,
+          targetMetrics: row.targetMetrics,
+          url: `/experiments/${row.id}`,
+          ...(untracked.length
+            ? { droppedMetrics: untracked, warning: "These metrics are not tracked and were left out." }
+            : {}),
+        };
+      },
+    }),
+
+    analyze_experiment: tool({
+      description:
+        "Measure an experiment: for each target metric, the mean in the baseline window (the same number of days just before it started), during the experiment, and after it ended, with the % change, a Welch t-test p-value, effect size, and how often the person actually did it.",
+      inputSchema: z.object({
+        id: z.string().describe("Experiment id from list_experiments"),
+      }),
+      execute: async ({ id }) => {
+        const result = await getExperimentReport(ctx.userId, id, ctx.timezone);
+        if (!result) return { error: `No experiment with id "${id}".` };
+        return roundAll({
+          title: result.experiment.title,
+          hypothesis: result.experiment.hypothesis,
+          phase: result.phase,
+          today: result.today,
+          ...result.report,
+          note: "Before/after comparison with no control group: anything else that changed in the same days can explain a difference. Short experiments have little statistical power, so 'no clear change' is not proof of no effect.",
+        });
+      },
+    }),
+
+    update_experiment: tool({
+      description:
+        "Change an experiment's state: end it early (moves the end date to today), abandon it, or record the person's conclusion once it is over.",
+      inputSchema: z.object({
+        id: z.string(),
+        action: z.enum(["end_now", "abandon", "conclude"]),
+        conclusion: z
+          .string()
+          .optional()
+          .describe("Required for conclude: what they learned, in a sentence or two"),
+      }),
+      execute: async ({ id, action, conclusion }) => {
+        const row = await changeExperiment(ctx, id, action, conclusion);
+        if (!row) return { error: `No experiment with id "${id}".` };
+        return {
+          id: row.id,
+          phase: phaseOf(row, todayFor(ctx.timezone)),
+          endDate: row.endDate,
+          conclusion: row.conclusion,
+        };
       },
     }),
   };

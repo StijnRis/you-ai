@@ -17,6 +17,7 @@ import { builtinSpecs } from "@/lib/mapping/builtin";
 import { applySpec } from "@/lib/mapping/apply";
 import { correlateAll, compareWeekendVsWeekday, summarize, pValueFor } from "@/lib/stats/correlate";
 import { localDateOf, shiftLocalDate } from "@/lib/events/time";
+import { analyzeExperiment, phaseOf, windowsFor } from "@/lib/experiments/analyze";
 
 const TZ = "Europe/Madrid";
 
@@ -307,6 +308,51 @@ function verifyStatistics() {
   check("summary counts every day", summary.n === 60);
 }
 
+function verifyExperiments() {
+  section("Experiments");
+
+  const experiment = { startDate: "2024-03-08", endDate: "2024-03-14", status: "active" as const };
+  const windows = windowsFor(experiment, "2024-03-30");
+  check(
+    "baseline is the same length, just before the start",
+    windows.baseline.from === "2024-03-01" && windows.baseline.to === "2024-03-07",
+    `${windows.baseline.from} – ${windows.baseline.to}`,
+  );
+  check("after window mirrors the experiment", windows.after?.from === "2024-03-15" && windows.after?.to === "2024-03-21");
+  check("running experiment measures up to today only", windowsFor(experiment, "2024-03-10").during?.to === "2024-03-10");
+  check("phase follows the dates", phaseOf(experiment, "2024-03-01") === "scheduled" && phaseOf(experiment, "2024-03-08") === "running" && phaseOf(experiment, "2024-03-15") === "finished");
+  check("abandoned overrides the dates", phaseOf({ ...experiment, status: "abandoned" }, "2024-03-10") === "abandoned");
+
+  // Mood jumps by two points during the experiment; steps are unaffected noise.
+  const mood = new Map<string, number>();
+  const steps = new Map<string, number>();
+  for (let i = 0; i < 21; i++) {
+    const date = shiftLocalDate("2024-03-01", i);
+    const inExperiment = date >= experiment.startDate && date <= experiment.endDate;
+    mood.set(date, (inExperiment ? 7 : 5) + ((i * 7) % 3) * 0.2);
+    steps.set(date, 8000 + ((i * 13) % 5) * 300);
+  }
+  const report = analyzeExperiment({
+    experiment,
+    today: "2024-03-30",
+    series: [
+      { typeKey: "mood", points: mood },
+      { typeKey: "steps", points: steps },
+    ],
+    meta: new Map([
+      ["mood", { label: "Mood", unit: null, polarity: 1 }],
+      ["steps", { label: "Steps", unit: "steps", polarity: 1 }],
+    ]),
+    targetMetrics: ["mood", "steps", "untracked"],
+    doneDates: new Set(["2024-03-08", "2024-03-09", "2024-03-10", "2024-03-11", "2024-03-12"]),
+  });
+  const [moodOutcome, stepsOutcome, missing] = report.outcomes;
+  check("a real shift is called an improvement", moodOutcome.verdict === "improved", `${moodOutcome.changePct?.toFixed(0)}%, p = ${moodOutcome.pValue?.toFixed(4)}`);
+  check("noise is not", stepsOutcome.verdict === "no_clear_change", `p = ${stepsOutcome.pValue?.toFixed(2)}`);
+  check("a metric with no data says so", missing.verdict === "not_enough_data");
+  check("adherence counts check-ins inside the window", report.adherence.daysDone === 5 && report.adherence.daysElapsed === 7);
+}
+
 /* -------------------------------------------------------------------------- */
 
 async function main() {
@@ -316,6 +362,7 @@ async function main() {
   verifyDetectionAndConversion();
   verifyTimezones();
   verifyStatistics();
+  verifyExperiments();
 
   console.log(
     failures === 0

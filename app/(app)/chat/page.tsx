@@ -3,9 +3,12 @@ import { getMetricOverview } from "@/lib/db/queries";
 import { SectionHeading } from "@/components/ui";
 import { ChatPanel } from "@/components/chat-panel";
 
-export default async function ChatPage() {
+export default async function ChatPage(props: PageProps<"/chat">) {
   const user = await requireUser();
   const metrics = await getMetricOverview(user.id);
+  // Other pages link here with a question already written, e.g. "how did my
+  // experiment go?" — it lands in the input rather than being sent unseen.
+  const { q } = await props.searchParams;
 
   return (
     <>
@@ -15,6 +18,7 @@ export default async function ChatPage() {
       />
       <ChatPanel
         metrics={metrics.map((metric) => ({ key: metric.key, label: metric.label, days: metric.days }))}
+        initialInput={typeof q === "string" ? q : ""}
       />
     </>
   );

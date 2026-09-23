@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   FileUp,
+  FlaskConical,
   LayoutDashboard,
   MessageSquare,
   Plug,
@@ -16,6 +17,7 @@ const LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/experiments", label: "Experiments", icon: FlaskConical },
   { href: "/import", label: "Import", icon: FileUp },
   { href: "/sources", label: "Sources", icon: Plug },
   { href: "/conversions", label: "Conversions", icon: Wand2 },
