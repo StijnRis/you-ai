@@ -4,6 +4,7 @@ import type {
   EmitSpec,
   FieldSpec,
   MappingSpec,
+  TimeFieldSpec,
   Transform,
   TypeMeta,
   WhereSpec,
@@ -130,10 +131,10 @@ function buildEvent(
   if (emit.value && value === null) return null;
 
   const meta: Record<string, unknown> = {};
-  if (emit.meta) {
-    for (const [key, field] of Object.entries(emit.meta)) {
-      const resolved = readField(record, field);
-      if (resolved !== undefined && resolved !== null && resolved !== "") meta[key] = resolved;
+  for (const entry of emit.meta ?? []) {
+    const resolved = readField(record, entry.field);
+    if (resolved !== undefined && resolved !== null && resolved !== "") {
+      meta[entry.name] = resolved;
     }
   }
 
@@ -203,16 +204,17 @@ export function readField(record: Record_, field: FieldSpec, durationS?: number 
     value = field.derived === "duration_min" ? durationS / 60 : durationS;
   } else if (field.const !== undefined) {
     value = field.const;
-  } else if (field.coalesce) {
-    for (const path of field.coalesce) {
+  } else {
+    // `path` first, then each alternative in turn — exports are inconsistent
+    // about naming the same thing across versions.
+    for (const path of [field.path, ...(field.coalesce ?? [])]) {
+      if (!path) continue;
       const candidate = getPath(record, path);
       if (candidate !== undefined && candidate !== null && candidate !== "") {
         value = candidate;
         break;
       }
     }
-  } else if (field.path) {
-    value = getPath(record, field.path);
   }
 
   for (const transform of field.transforms ?? []) {
@@ -276,7 +278,8 @@ function applyTransform(value: unknown, transform: Transform): unknown {
     case "map": {
       const key = toText(value);
       if (key === null) return transform.fallback ?? null;
-      return key in transform.table ? transform.table[key] : (transform.fallback ?? null);
+      const hit = transform.table.find((entry) => entry.from === key);
+      return hit ? hit.to : (transform.fallback ?? null);
     }
     case "defaultTo":
       return value === undefined || value === null || value === "" ? transform.value : value;
@@ -285,7 +288,7 @@ function applyTransform(value: unknown, transform: Transform): unknown {
 
 function readTime(
   record: Record_,
-  field: FieldSpec & { format: "iso" | "epoch_s" | "epoch_ms" | "date" },
+  field: TimeFieldSpec,
   specTimezone: "local" | "utc",
   userTimezone: string,
 ): Date | null {

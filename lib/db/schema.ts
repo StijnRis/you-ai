@@ -1,11 +1,11 @@
 import {
   boolean,
+  pgEnum,
   date,
   doublePrecision,
   index,
   integer,
   jsonb,
-  pgEnum,
   pgTable,
   primaryKey,
   smallint,
@@ -17,6 +17,31 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { MappingSpec } from "@/lib/mapping/spec";
+
+export const ROLES = ["user", "admin"] as const;
+export type Role = (typeof ROLES)[number];
+
+export const AGGREGATIONS = ["sum", "avg", "min", "max", "last", "count"] as const;
+export const VALUE_KINDS = ["numeric", "duration", "boolean", "categorical", "text"] as const;
+export const IMPORT_STATUSES = [
+  "detecting",
+  "awaiting_review",
+  "applying",
+  "done",
+  "failed",
+  /** Recognised as part of a known export, and deliberately not imported. */
+  "skipped",
+] as const;
+
+/*
+ * Real Postgres enums rather than text columns: the database refuses a bad
+ * value even if something writes to it outside this codebase, and `role` in
+ * particular decides who reaches the admin screen.
+ */
+export const roleEnum = pgEnum("role", ROLES);
+export const aggregationEnum = pgEnum("aggregation", AGGREGATIONS);
+export const valueKindEnum = pgEnum("value_kind", VALUE_KINDS);
+export const importStatusEnum = pgEnum("import_status", IMPORT_STATUSES);
 
 /* -------------------------------------------------------------------------- */
 /*  Auth.js tables (shape dictated by @auth/drizzle-adapter)                   */
@@ -30,6 +55,15 @@ export const users = pgTable("user", {
   email: text("email").unique(),
   emailVerified: timestamp("emailVerified", { mode: "date", withTimezone: true }),
   image: text("image"),
+  /**
+   * bcrypt hash. Null for accounts that only ever sign in with Google or
+   * GitHub, and never selected into anything that reaches the client.
+   */
+  passwordHash: text("password_hash"),
+  role: roleEnum("role").notNull().default("user"),
+  /** Set by an admin to block sign-in without destroying the account's data. */
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   // YouAI additions: everything time-bucketed is resolved in this zone.
   timezone: text("timezone").notNull().default("UTC"),
   latitude: doublePrecision("latitude"),
@@ -80,28 +114,6 @@ export const verificationTokens = pgTable(
 /* -------------------------------------------------------------------------- */
 
 /**
- * How several events of the same type on the same day collapse into that day's
- * single number. Steps sum, resting heart rate averages, weight takes the last
- * reading of the day.
- */
-export const aggregationEnum = pgEnum("aggregation", [
-  "sum",
-  "avg",
-  "min",
-  "max",
-  "last",
-  "count",
-]);
-
-export const valueKindEnum = pgEnum("value_kind", [
-  "numeric",
-  "duration",
-  "boolean",
-  "categorical",
-  "text",
-]);
-
-/**
  * The metadata half of the two-table design: one row per kind of thing that can
  * be measured. `events` carries only the measurement itself.
  */
@@ -113,6 +125,11 @@ export const eventTypes = pgTable(
     description: text("description"),
     unit: text("unit"), // "steps", "°C", "min", "bpm"
     valueKind: valueKindEnum("value_kind").notNull().default("numeric"),
+    /**
+     * How several events of the same type on the same day collapse into that
+     * day's single number. Steps sum, resting heart rate averages, weight takes
+     * the last reading.
+     */
     aggregation: aggregationEnum("aggregation").notNull().default("sum"),
     /** 1 = higher is better, -1 = lower is better, 0 = neither. */
     polarity: smallint("polarity").notNull().default(0),
@@ -136,7 +153,7 @@ export const sources = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     /** "import" = data dump, "api" = we pull it ourselves. */
-    kind: text("kind").$type<"import" | "api">().notNull(),
+    kind: text("kind", { enum: ["import", "api"] }).notNull(),
     provider: text("provider").notNull(), // "open-meteo", "google-fit", "apple-health"
     label: text("label").notNull(),
     config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
@@ -230,7 +247,7 @@ export const mappingSpecs = pgTable(
     key: text("key").notNull(), // "google-fit.daily-activity"
     name: text("name").notNull(),
     provider: text("provider").notNull(),
-    origin: text("origin").$type<"builtin" | "inferred" | "manual">().notNull(),
+    origin: text("origin", { enum: ["builtin", "inferred", "manual"] }).notNull(),
     spec: jsonb("spec").$type<MappingSpec>().notNull(),
     /** Bumped whenever the spec is edited; old imports keep their version. */
     version: integer("version").notNull().default(1),
@@ -246,8 +263,7 @@ export const mappingSpecs = pgTable(
  *
  * Separate from `mapping_specs` because the relationship is one-to-many: the
  * same Google Fit conversion handles exports whose column sets differ slightly
- * between years, and each of those is its own fingerprint. Keeping them here
- * means recognising any of them is a single indexed lookup.
+ * between years, and each of those is its own fingerprint.
  */
 export const specFingerprints = pgTable(
   "spec_fingerprints",
@@ -270,16 +286,6 @@ export const specFingerprints = pgTable(
   ],
 );
 
-export const importStatusEnum = pgEnum("import_status", [
-  "detecting",
-  "awaiting_review",
-  "applying",
-  "done",
-  "failed",
-  /** Recognised as part of a known export, and deliberately not imported. */
-  "skipped",
-]);
-
 /** One uploaded file and what became of it. */
 export const imports = pgTable(
   "imports",
@@ -298,7 +304,9 @@ export const imports = pgTable(
       onDelete: "set null",
     }),
     /** How the spec was chosen: reused by fingerprint, or freshly inferred. */
-    matchKind: text("match_kind").$type<"fingerprint" | "builtin" | "inferred" | "skipped">(),
+    matchKind: text("match_kind", {
+      enum: ["fingerprint", "builtin", "inferred", "skipped"],
+    }),
     stats: jsonb("stats").$type<Record<string, unknown>>(),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -317,5 +325,84 @@ export const importBlobs = pgTable("import_blobs", {
     .references(() => imports.id, { onDelete: "cascade" }),
   contentType: text("content_type").notNull(),
   content: text("content").notNull(), // base64 for binary formats, raw text otherwise
-  encoding: text("encoding").$type<"utf8" | "base64">().notNull().default("utf8"),
+  encoding: text("encoding", { enum: ["utf8", "base64"] }).notNull().default("utf8"),
 });
+
+/* -------------------------------------------------------------------------- */
+/*  Application settings                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Instance-wide options an admin can change without a redeploy. Key/value
+ * rather than a column per option, so adding one is an insert instead of a
+ * migration — the same reasoning behind `event_types`.
+ */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Experiments: change one thing for a while, then measure what moved        */
+/* -------------------------------------------------------------------------- */
+
+/** A web page the model read while designing an experiment. */
+export type ExperimentSource = { title: string; url: string };
+
+/**
+ * A self-experiment: "cold shower every morning for a week". The data window
+ * is the calendar days from `startDate` to `endDate`; the baseline is the same
+ * number of days immediately before, so the comparison is against how this
+ * person was doing right beforehand rather than against some population norm.
+ *
+ * Only abandonment is stored as a status. Whether an experiment is scheduled,
+ * running or finished follows from its dates, so it can never go stale.
+ */
+export const experiments = pgTable(
+  "experiments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    /** What to actually do each day: "2–3 minutes of cold water at the end of the morning shower". */
+    intervention: text("intervention").notNull(),
+    /** The expected effect, stated so it can be proved wrong. */
+    hypothesis: text("hypothesis").notNull(),
+    /** Why this is worth trying — usually a summary of what the research found. */
+    rationale: text("rationale"),
+    sources: jsonb("sources").$type<ExperimentSource[]>().notNull().default([]),
+    /** Metric keys whose change decides whether it worked. */
+    targetMetrics: jsonb("target_metrics").$type<string[]>().notNull().default([]),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    status: text("status").$type<"active" | "abandoned">().notNull().default("active"),
+    /** What the person concluded once it was over, in their own words. */
+    conclusion: text("conclusion"),
+    createdBy: text("created_by").$type<"ai" | "user">().notNull().default("ai"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("experiments_user_idx").on(t.userId, t.startDate)],
+);
+
+/**
+ * Did they actually do it that day? Kept apart from `events` so that ticking a
+ * box never registers a global event type per experiment, and so the analysis
+ * can separate "days on the protocol" from "days in the window".
+ */
+export const experimentCheckins = pgTable(
+  "experiment_checkins",
+  {
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiments.id, { onDelete: "cascade" }),
+    localDate: date("local_date").notNull(),
+    done: boolean("done").notNull().default(true),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.experimentId, t.localDate] })],
+);

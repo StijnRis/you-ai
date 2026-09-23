@@ -1,12 +1,14 @@
 import { requireUser } from "@/lib/auth";
 import { listSources } from "@/lib/db/queries";
-import { weatherAdapter } from "@/lib/adapters/weather";
+import { apiAdapters } from "@/lib/adapters";
+import { githubOAuthApp } from "@/lib/adapters/github-oauth";
 import { Badge, Card, SectionHeading } from "@/components/ui";
-import { WeatherConnect, SyncButton } from "@/components/sources-client";
+import { SimpleConnect, SyncButton, WeatherConnect } from "@/components/sources-client";
 
-export default async function SourcesPage() {
+export default async function SourcesPage(props: PageProps<"/sources">) {
   const user = await requireUser();
   const rows = await listSources(user.id);
+  const { error, connected } = await props.searchParams;
 
   const apiSources = rows.filter((row) => row.kind === "api");
   const importSources = rows.filter((row) => row.kind === "import");
@@ -19,58 +21,107 @@ export default async function SourcesPage() {
           description="Two kinds of adapter feed the same event store: ones that pull from a service directly, and ones fed by a data export."
         />
 
-        <Card>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="max-w-xl">
-              <h3 className="font-medium">{weatherAdapter.label}</h3>
-              <p className="mt-1 text-sm text-muted">{weatherAdapter.description}</p>
-              <p className="mt-2 text-xs text-muted">
-                Produces {Object.keys(weatherAdapter.types).length} metrics:{" "}
-                {Object.values(weatherAdapter.types)
-                  .map((type) => type.label.toLowerCase())
-                  .join(", ")}
-                .
-              </p>
-            </div>
-            <Badge tone="neutral">direct API</Badge>
-          </div>
+        {typeof error === "string" ? (
+          <p className="mb-3 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            {error}
+          </p>
+        ) : null}
+        {connected === "github" ? (
+          <p className="mb-3 rounded-lg border border-positive/30 bg-positive/5 px-3 py-2 text-sm text-positive">
+            GitHub connected and synced.
+          </p>
+        ) : null}
 
-          <div className="mt-5 border-t border-border pt-5">
-            <WeatherConnect />
-          </div>
-        </Card>
-      </section>
-
-      {apiSources.length > 0 ? (
-        <section>
-          <SectionHeading title="Connected" />
-          <div className="space-y-2">
-            {apiSources.map((source) => {
-              const config = source.config as { placeName?: string; latitude?: number; longitude?: number };
-              return (
-                <Card key={source.id} className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{source.label}</p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {config.placeName ??
-                        (config.latitude !== undefined
-                          ? `${config.latitude.toFixed(3)}, ${config.longitude?.toFixed(3)}`
-                          : source.provider)}
-                      {source.lastSyncAt
-                        ? ` · last synced ${source.lastSyncAt.toLocaleString()}`
-                        : " · never synced"}
+        <div className="space-y-3">
+          {Object.values(apiAdapters).map((adapter) => {
+            const source = apiSources.find((row) => row.provider === adapter.provider);
+            return (
+              <Card key={adapter.provider}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="max-w-xl">
+                    <h3 className="font-medium">{source?.label ?? adapter.label}</h3>
+                    <p className="mt-1 text-sm text-muted">{adapter.description}</p>
+                    <p className="mt-2 text-xs text-muted">
+                      Produces{" "}
+                      {Object.values(adapter.types)
+                        .map((type) => type.label.toLowerCase())
+                        .join(", ")}
+                      .
                     </p>
-                    {source.lastSyncError ? (
-                      <p className="mt-1 text-xs text-danger">{source.lastSyncError}</p>
-                    ) : null}
                   </div>
-                  <SyncButton sourceId={source.id} />
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
+                  <Badge tone={source ? "positive" : "neutral"}>
+                    {source ? "connected" : "direct API"}
+                  </Badge>
+                </div>
+
+                <div className="mt-5 border-t border-border pt-5">
+                  {source ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-muted">
+                          {source.eventCount.toLocaleString()} records imported ·{" "}
+                          {source.lastSyncAt
+                            ? `last synced ${source.lastSyncAt.toLocaleString()}`
+                            : "never synced"}
+                        </p>
+                        {source.lastSyncError ? (
+                          <p className="mt-1 text-xs text-danger">{source.lastSyncError}</p>
+                        ) : null}
+                      </div>
+                      <SyncButton sourceId={source.id} />
+                    </div>
+                  ) : adapter.provider === "open-meteo" ? (
+                    <WeatherConnect />
+                  ) : adapter.provider === "github" && githubOAuthApp() ? (
+                    <div className="space-y-2">
+                      <a
+                        href="/api/connect/github"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-text px-4 text-sm font-medium text-bg transition-opacity hover:opacity-90"
+                      >
+                        Connect with GitHub
+                      </a>
+                      <p className="text-xs text-muted">
+                        You approve read-only access on GitHub and come straight back here.
+                      </p>
+                    </div>
+                  ) : adapter.provider === "github" ? (
+                    <SimpleConnect
+                      provider="github"
+                      label="GitHub"
+                      fields={[
+                        { key: "username", label: "Username", placeholder: "octocat" },
+                        {
+                          key: "token",
+                          label: "Token",
+                          placeholder: "ghp_…",
+                          secret: true,
+                          optional: true,
+                        },
+                      ]}
+                      hint="GitHub's API needs a token even for public activity. Create a classic token with no scopes at github.com/settings/tokens."
+                    />
+                  ) : (
+                    <SimpleConnect
+                      provider="google-calendar"
+                      label="Google Calendar"
+                      fields={[
+                        {
+                          key: "icalUrl",
+                          label: "Secret iCal address",
+                          placeholder: "https://calendar.google.com/calendar/ical/…/basic.ics",
+                          secret: true,
+                          wide: true,
+                        },
+                      ]}
+                      hint="In Google Calendar: Settings → your calendar → Integrate calendar → Secret address in iCal format."
+                    />
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
 
       {importSources.length > 0 ? (
         <section>
@@ -81,7 +132,12 @@ export default async function SourcesPage() {
           <div className="space-y-2">
             {importSources.map((source) => (
               <Card key={source.id} className="flex items-center justify-between gap-3">
-                <p className="font-medium">{source.label}</p>
+                <div>
+                  <p className="font-medium">{source.label}</p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {source.eventCount.toLocaleString()} records imported
+                  </p>
+                </div>
                 <Badge tone="neutral">data dump</Badge>
               </Card>
             ))}

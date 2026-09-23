@@ -3,26 +3,53 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 /**
  * Nebius Token Factory speaks the OpenAI wire format, so the generic
  * openai-compatible provider is all that's needed — no bespoke client.
+ *
+ * The client is built on first use rather than at import. Reading the API key
+ * at module scope captures whatever was set when the module first loaded,
+ * which is empty in any script that calls dotenv after its imports (ESM hoists
+ * them) and unreliable in serverless cold starts.
  */
-const baseURL = process.env.NEBIUS_BASE_URL ?? "https://api.tokenfactory.nebius.com/v1/";
 
-export const nebius = createOpenAICompatible({
-  name: "nebius",
-  baseURL,
-  apiKey: process.env.NEBIUS_API_KEY ?? "",
-});
+type Nebius = ReturnType<typeof createOpenAICompatible>;
+
+let cached: { key: string; provider: Nebius } | undefined;
+
+function provider(): Nebius {
+  const apiKey = process.env.NEBIUS_API_KEY ?? "";
+  // Rebuild if the key changed, so a script that loads .env late still works.
+  if (cached?.key === apiKey) return cached.provider;
+
+  const instance = createOpenAICompatible({
+    name: "nebius",
+    baseURL: process.env.NEBIUS_BASE_URL ?? "https://api.tokenfactory.nebius.com/v1/",
+    apiKey,
+    /*
+     * Nebius supports constrained decoding against a JSON schema. Without this
+     * the SDK only asks for "some JSON" and the model invents its own field
+     * names — plausible-looking conversions that fail validation every time.
+     */
+    supportsStructuredOutputs: true,
+  });
+  cached = { key: apiKey, provider: instance };
+  return instance;
+}
+
+export const DEFAULT_CHAT_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507";
 
 /** Conversation and tool calling. */
-export const CHAT_MODEL = process.env.NEBIUS_CHAT_MODEL ?? "meta-llama/Meta-Llama-3.1-70B-Instruct";
+export const CHAT_MODEL = () => process.env.NEBIUS_CHAT_MODEL || DEFAULT_CHAT_MODEL;
 
 /**
- * Structured extraction (writing conversions). Same default as chat, but split
- * so it can be pointed at a stronger model without touching the chat path.
+ * Structured extraction (writing conversions). Defaults to the chat model, but
+ * split so it can be pointed at a stronger one without touching the chat path.
  */
-export const REASONING_MODEL = process.env.NEBIUS_REASONING_MODEL ?? CHAT_MODEL;
+export const REASONING_MODEL = () =>
+  process.env.NEBIUS_REASONING_MODEL || CHAT_MODEL();
 
-export const chatModel = () => nebius(CHAT_MODEL);
-export const reasoningModel = () => nebius(REASONING_MODEL);
+/** `override` comes from the admin settings, falling back to the env default. */
+export const chatModel = (override?: string) => provider()(override || CHAT_MODEL());
+
+export const reasoningModel = () => provider()(REASONING_MODEL());
 
 export function assertModelConfigured(): void {
   if (!process.env.NEBIUS_API_KEY) {

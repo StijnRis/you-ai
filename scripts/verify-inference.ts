@@ -26,7 +26,7 @@ async function main() {
   console.log(`Format:      ${detection.format}`);
   console.log(`Fields:      ${detection.fields.join(", ")}`);
   console.log(`Fingerprint: ${detection.fingerprint}`);
-  console.log(`Model:       ${REASONING_MODEL} (chat uses ${CHAT_MODEL})\n`);
+  console.log(`Model:       ${REASONING_MODEL()} (chat uses ${CHAT_MODEL()})\n`);
 
   const started = Date.now();
   const result = await inferSpec(detection, { timezone: "Europe/Madrid" });

@@ -1,14 +1,15 @@
 import { getUser } from "@/lib/auth";
 import { runImport, type ImportOutcome } from "@/lib/import/run";
+import { getSettings } from "@/lib/settings";
 
 export const maxDuration = 300;
-
-/** 20MB per upload — beyond this it should go to blob storage first. */
-const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const user = await getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+
+  const settings = await getSettings();
+  const maxBytes = settings.maxUploadMb * 1024 * 1024;
 
   const form = await request.formData();
   // A Samsung Health export is a folder of forty CSVs rather than one archive,
@@ -19,13 +20,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "No file uploaded." }, { status: 400 });
   }
 
+  // The limit is on the upload as a whole, since a selection of forty files
+  // costs the request just as much as one archive of the same size.
   const total = files.reduce((sum, file) => sum + file.size, 0);
-  if (total > MAX_BYTES) {
+  if (total > maxBytes) {
     return Response.json(
       {
         error: `That is ${(total / 1e6).toFixed(1)}MB across ${files.length} file${
           files.length === 1 ? "" : "s"
-        }; the limit is ${MAX_BYTES / 1e6}MB. Zip the export, or upload it in batches.`,
+        }; the limit is ${settings.maxUploadMb}MB. Zip the export, or upload it in batches.`,
       },
       { status: 413 },
     );
@@ -43,6 +46,7 @@ export async function POST(request: Request) {
           timezone: user.timezone,
           filename: file.name,
           data,
+          allowInference: settings.allowInference,
         })),
       );
     } catch (error) {

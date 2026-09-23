@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   dailyMetrics,
@@ -106,7 +106,11 @@ export async function getDataRange(
 
 export async function listSources(userId: string) {
   return db
-    .select()
+    .select({
+      ...getTableColumns(sources),
+      /** How many events this source has put in the store. */
+      eventCount: sql<number>`(select count(*)::int from ${events} where ${events.sourceId} = ${sources.id})`,
+    })
     .from(sources)
     .where(eq(sources.userId, userId))
     .orderBy(desc(sources.createdAt));

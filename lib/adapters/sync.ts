@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { sources } from "@/lib/db/schema";
-import { getAdapter } from "@/lib/adapters/weather";
+import { getAdapter } from "@/lib/adapters";
 import { ingestEvents } from "@/lib/events/ingest";
 import { shiftLocalDate } from "@/lib/events/time";
 import { localDateOf } from "@/lib/events/time";

@@ -5,9 +5,12 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   FileUp,
+  FlaskConical,
   LayoutDashboard,
   MessageSquare,
   Plug,
+  Shield,
+  UserRound,
   Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,17 +19,22 @@ const LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/experiments", label: "Experiments", icon: FlaskConical },
   { href: "/import", label: "Import", icon: FileUp },
   { href: "/sources", label: "Sources", icon: Plug },
   { href: "/conversions", label: "Conversions", icon: Wand2 },
+  { href: "/profile", label: "Profile", icon: UserRound },
 ];
 
-export function Nav() {
+const ADMIN_LINK = { href: "/admin", label: "Admin", icon: Shield };
+
+export function Nav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
+  const links = isAdmin ? [...LINKS, ADMIN_LINK] : LINKS;
 
   return (
     <nav className="flex gap-0.5 overflow-x-auto" aria-label="Main">
-      {LINKS.map((link) => {
+      {links.map((link) => {
         const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
         const Icon = link.icon;
         return (

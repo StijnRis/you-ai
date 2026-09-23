@@ -5,13 +5,15 @@ import { correlateAll } from "@/lib/stats/correlate";
 import { EmptyState, SectionHeading } from "@/components/ui";
 import { InsightsView } from "@/components/insights-view";
 import { formatDate } from "@/lib/utils";
+import { getSettings } from "@/lib/settings";
 
 export default async function InsightsPage() {
   const user = await requireUser();
-  const [metrics, series, range] = await Promise.all([
+  const [metrics, series, range, settings] = await Promise.all([
     getMetricOverview(user.id),
     getDailySeries(user.id),
     getDataRange(user.id),
+    getSettings(),
   ]);
 
   const correlatable = series.filter((one) => {
@@ -41,7 +43,13 @@ export default async function InsightsPage() {
 
   // Every pair at every lag. The client picks which to show; recomputing on
   // each filter change would mean a round trip per keystroke.
-  const results = correlateAll(correlatable, { minOverlap: 10, maxLag: 3 });
+  const results = correlateAll(correlatable, {
+    // A floor below the admin's minimum, so the slider can still be dragged
+    // down from the default without a round trip.
+    minOverlap: Math.min(10, settings.correlationMinOverlap),
+    maxLag: settings.correlationMaxLag,
+    alpha: settings.correlationAlpha,
+  });
 
   return (
     <>
@@ -49,7 +57,7 @@ export default async function InsightsPage() {
         title="Insights"
         description={
           range
-            ? `Every pair of metrics, tested at shifts of up to three days across ${range.days} days (${formatDate(range.from)} – ${formatDate(range.to)}).`
+            ? `Every pair of metrics, tested at shifts of up to ${settings.correlationMaxLag} days across ${range.days} days (${formatDate(range.from)} – ${formatDate(range.to)}).`
             : undefined
         }
       />
@@ -61,6 +69,7 @@ export default async function InsightsPage() {
           unit: metric.unit,
           category: metric.category,
         }))}
+        defaultMinOverlap={settings.correlationMinOverlap}
         series={correlatable.map((one) => ({
           key: one.typeKey,
           points: [...one.points.entries()],

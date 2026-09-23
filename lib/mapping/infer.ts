@@ -46,6 +46,8 @@ Rules:
   sample, and should be the ones that identify this format.
 - Use format "date" for bare calendar days (2024-03-01) and "iso" for full
   timestamps. Use epoch_s / epoch_ms only when the value is a bare number.
+- timestamp.path is required and must name a real field from the list. Every
+  emit inherits it unless the emit sets its own.
 - When the measurement is the length of the record rather than a column — a
   sleep session or a workout given only as a start and an end — set
   endTimestamp and give the value as { "derived": "duration_min" }. Do not

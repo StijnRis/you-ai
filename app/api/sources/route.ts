@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sources } from "@/lib/db/schema";
-import { getAdapter } from "@/lib/adapters/weather";
+import { getAdapter } from "@/lib/adapters";
 import { listSources } from "@/lib/db/queries";
 import { syncSource } from "@/lib/adapters/sync";
 
@@ -32,6 +32,11 @@ export async function POST(request: Request) {
   const adapter = getAdapter(parsed.data.provider);
   if (!adapter) {
     return Response.json({ error: `Unknown provider "${parsed.data.provider}".` }, { status: 400 });
+  }
+
+  const existing = await listSources(user.id);
+  if (existing.some((source) => source.kind === "api" && source.provider === adapter.provider)) {
+    return Response.json({ error: `${adapter.label} is already connected.` }, { status: 409 });
   }
 
   let config;

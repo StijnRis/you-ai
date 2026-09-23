@@ -217,10 +217,10 @@ const sleep: MappingSpec = {
       dateFrom: "end",
       value: { derived: "duration_min", transforms: [{ op: "round", decimals: 0 }] },
       externalId: { path: "com.samsung.health.sleep.datauuid", transforms: [] },
-      meta: {
-        cycles: { path: "sleep_cycle", transforms: [] },
-        latency: { path: "sleep_latency", transforms: [] },
-      },
+      meta: [
+        { name: "cycles", field: { path: "sleep_cycle", transforms: [] } },
+        { name: "latency", field: { path: "sleep_latency", transforms: [] } },
+      ],
     },
     {
       type: "sleep_score",
@@ -616,12 +616,12 @@ const height: MappingSpec = {
  * reported as "Other" with the raw code kept on the event, rather than guessed
  * at; the conversion is editable, so a code can be named once and for good.
  */
-const EXERCISE_TYPES: Record<string, string> = {
-  "0": "Other",
-  "1001": "Walking",
-  "1002": "Running",
-  "11007": "Cycling",
-};
+const EXERCISE_TYPES: { from: string; to: string }[] = [
+  { from: "0", to: "Other" },
+  { from: "1001", to: "Walking" },
+  { from: "1002", to: "Running" },
+  { from: "11007", to: "Cycling" },
+];
 
 const exercise: MappingSpec = {
   key: "samsung-health.exercise",
@@ -718,9 +718,12 @@ const exercise: MappingSpec = {
         transforms: [{ op: "map", table: EXERCISE_TYPES, fallback: "Other" }],
       },
       externalId: { path: "com.samsung.health.exercise.datauuid", transforms: [] },
-      meta: {
-        code: { path: "com.samsung.health.exercise.exercise_type", transforms: [] },
-      },
+      meta: [
+        {
+          name: "code",
+          field: { path: "com.samsung.health.exercise.exercise_type", transforms: [] },
+        },
+      ],
       skipWhen: { path: "com.samsung.health.exercise.exercise_type", is: "empty" },
     },
   ],

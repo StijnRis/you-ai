@@ -27,10 +27,15 @@ export const transformSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("replace"), find: z.string(), with: z.string() }),
   /** Extract with a regex; `group` picks the capture group. */
   z.object({ op: z.literal("extract"), pattern: z.string(), group: z.number().int().default(1) }),
-  /** Lookup table, e.g. sleep stage names to minutes, or Yes/No to 1/0. */
+  /**
+   * Lookup table, e.g. sleep stage names to minutes, or Yes/No to 1/0.
+   * A list of pairs rather than an object: a JSON Schema with open-ended keys
+   * needs `propertyNames`, which constrained-decoding backends do not all
+   * implement, and the model has to be able to emit this shape.
+   */
   z.object({
     op: z.literal("map"),
-    table: z.record(z.string(), SCALAR),
+    table: z.array(z.object({ from: z.string(), to: SCALAR })),
     fallback: SCALAR.optional(),
   }),
   z.object({ op: z.literal("defaultTo"), value: SCALAR }),
@@ -70,17 +75,30 @@ export const fieldSchema = z
 
 export type FieldSpec = z.infer<typeof fieldSchema>;
 
-/** How to turn a source value into an instant. */
-export const timeFieldSchema = fieldSchema.and(
-  z.object({
-    /**
-     * "iso" parses anything Date.parse handles. "epoch_s"/"epoch_ms" read
-     * numbers. "date" treats the value as a bare calendar day (no clock time),
-     * anchored at noon local so timezone shifts never move it across midnight.
-     */
-    format: z.enum(["iso", "epoch_s", "epoch_ms", "date"]).default("iso"),
-  }),
-);
+/**
+ * How to turn a source value into an instant.
+ *
+ * `path` is required rather than being one of several alternatives, unlike a
+ * general field. A conditional "one of these keys must be present" rule cannot
+ * be expressed in JSON Schema, so a model generating against this schema under
+ * constrained decoding would be free to omit all of them — and did. Making the
+ * requirement structural is what makes the schema enforceable.
+ */
+export const timeFieldSchema = z.object({
+  /** Dot path to the timestamp on the source record. */
+  path: z.string().min(1).describe("Field name holding the timestamp"),
+  /** Tried in order if `path` is missing or empty on a given record. */
+  coalesce: z.array(z.string()).optional(),
+  transforms: z.array(transformSchema).default([]),
+  /**
+   * "iso" parses anything Date.parse handles. "epoch_s"/"epoch_ms" read
+   * numbers. "date" treats the value as a bare calendar day (no clock time),
+   * anchored at noon local so timezone shifts never move it across midnight.
+   */
+  format: z.enum(["iso", "epoch_s", "epoch_ms", "date"]).default("iso"),
+});
+
+export type TimeFieldSpec = z.infer<typeof timeFieldSchema>;
 
 /**
  * Describes an event type the spec introduces, so importing an unknown format
@@ -134,7 +152,7 @@ export const emitSchema = z.object({
    */
   dateFrom: z.enum(["start", "end"]).optional(),
   /** Extra context kept on the event but not used for correlation. */
-  meta: z.record(z.string(), fieldSchema).optional(),
+  meta: z.array(z.object({ name: z.string(), field: fieldSchema })).optional(),
   /** Source-provided stable id, when the dump has one. */
   externalId: fieldSchema.optional(),
   /** Drop the event when the chosen field is empty/zero — dumps are full of padding rows. */

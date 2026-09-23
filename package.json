@@ -23,6 +23,7 @@
     "@auth/drizzle-adapter": "^1.11.3",
     "@stdlib/stats-base-dists-t-cdf": "^0.2.3",
     "ai": "^7.0.109",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.3",
