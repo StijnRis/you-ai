@@ -29,7 +29,7 @@ export interface ApiAdapter<Config = Record<string, unknown>> {
     from: string;
     to: string;
     timezone: string;
-  }): Promise<NormalizedEvent[]>;
+  }): Promise<NormalizedEvent[] | { events: NormalizedEvent[]; label?: string }>;
 }
 
 export type AnyApiAdapter = ApiAdapter<never>;

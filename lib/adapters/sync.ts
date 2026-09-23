@@ -50,7 +50,9 @@ export async function syncSource(params: {
 
   try {
     const config = adapter.validateConfig(source.config);
-    const events = await adapter.fetch({ config, from, to, timezone: params.timezone });
+    const fetched = await adapter.fetch({ config, from, to, timezone: params.timezone });
+    const events = Array.isArray(fetched) ? fetched : fetched.events;
+    const label = Array.isArray(fetched) ? undefined : fetched.label;
 
     const types = new Map<string, TypeMeta>(Object.entries(adapter.types));
     const ingested = await ingestEvents(params.userId, events, {
@@ -60,7 +62,7 @@ export async function syncSource(params: {
 
     await db
       .update(sources)
-      .set({ lastSyncAt: new Date(), lastSyncError: null })
+      .set({ lastSyncAt: new Date(), lastSyncError: null, ...(label ? { label } : {}) })
       .where(eq(sources.id, source.id));
 
     return {
