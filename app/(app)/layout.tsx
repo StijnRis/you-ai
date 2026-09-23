@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { signOutAction } from "@/lib/actions/account";
 import { Nav } from "@/components/nav";
 import { countAwaitingEvaluation } from "@/lib/experiments/store";
 
@@ -21,14 +20,6 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             isAdmin={user.role === "admin"}
             badges={{ "/experiments": awaitingEvaluation }}
           />
-          <form className="ml-auto" action={signOutAction}>
-            <button
-              type="submit"
-              className="rounded-lg px-2.5 py-1.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-text"
-            >
-              Sign out
-            </button>
-          </form>
         </div>
       </header>
 
