@@ -103,4 +103,6 @@ don't claim encryption unless it's added.
 
 **Monetisation: pay for convenience.** Since anyone can run it for free, people pay us for convenience, because hardly anyone wants to host it themselves when we can do it for them. We plan several pricing tiers: a fully free plan so people can try it out, with limited AI usage because AI calls cost money, and paid plans with more, including a free trial of Pro.
 
+**Why data-driven people will pay.** Our users think in numbers, so they can put a price on what YouAI gives them straight away. If an insight earns them one extra hour of focused work and their time is worth €40 an hour, that insight is worth €40. After a few actionable insights, the maths is obvious: it's a simple cost-benefit calculation, and the benefits outweigh the subscription cost.
+
 Every AI tool is scoped to the signed-in user in server code. The model never sees or supplies a user ID, so no prompt can reach another person's data. The model gets aggregated statistics rather than raw records, and it's instructed to separate correlation from causation and to say when a result isn't significant. Experiment results are labelled as before/after comparisons with no control group. Users can disconnect any source, and made-up sample data is clearly marked and deleted with one click.
