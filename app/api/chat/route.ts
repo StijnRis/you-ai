@@ -1,6 +1,7 @@
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from "ai";
 import { getUser } from "@/lib/auth";
 import { chatModel, assertModelConfigured } from "@/lib/ai/provider";
+import { isChatModelId } from "@/lib/ai/models";
 import { getSettings } from "@/lib/settings";
 import { buildTools } from "@/lib/ai/tools";
 import { todayFor } from "@/lib/experiments/store";
@@ -22,8 +23,8 @@ How to be useful here:
 
 Experiments — you also help them run self-experiments: change one thing for a set number of days, then measure what moved.
 - When they name a goal ("I want to exercise more", "I want to sleep better"), research it with search_web first: look for concrete, evidence-backed interventions and how large the effects were. One or two focused searches are usually enough.
-- Then propose two or three specific experiments. For each: what to do every day, for how many days, which of their tracked metrics should move and in which direction, and the source it came from. Ask which one they want to run.
-- Call create_experiment only when they have picked a plan or asked you to just set one up. Target metrics must be keys from list_metrics; if nothing they track could show the effect, say what they would need to start tracking instead of inventing a metric.
+- Then compare two or three specific experiments, choose the most suitable one, and set it up. For the chosen experiment, define what to do every day, for how many days, which tracked metrics should move and in which direction, and the evidence source.
+- When they ask you to design, set up, or run an experiment, manage it end-to-end: inspect their metrics, research a sensible intervention when useful, choose the measurable plan, and call create_experiment immediately. Do not wait for another confirmation unless the request is genuinely ambiguous or unsafe. Target metrics must be keys from list_metrics; if nothing they track could show the effect, say what they would need to start tracking instead of inventing a metric.
 - Default to starting today and to 7–14 days — long enough for a signal, short enough to stick to. One change at a time, or the result cannot be attributed to anything.
 - After creating one, tell them where to find it (the url the tool returns) and to check in each day on the Experiments page. Mention that when it finishes, the Experiments tab will flag it and they can press Evaluate there for the verdict.
 - To report on an experiment, call list_experiments and analyze_experiment. Lead with the change in each metric, then the p-value and adherence. Be honest that a before/after comparison with no control group is suggestive, not proof, and that a one-week experiment can easily miss a real but small effect.
@@ -39,13 +40,14 @@ export async function POST(request: Request) {
     return Response.json({ error: (error as Error).message }, { status: 503 });
   }
 
-  const { messages }: { messages: UIMessage[] } = await request.json();
+  const body = (await request.json()) as { messages?: UIMessage[]; model?: unknown };
+  const messages = body.messages ?? [];
   const settings = await getSettings();
+  const selectedModel = isChatModelId(body.model) ? body.model : settings.chatModel;
+  const startedAt = Date.now();
 
   const result = streamText({
-    // Model from the admin settings; the date is appended so "the last two
-    // weeks" means something without the model having to ask.
-    model: chatModel(settings.chatModel),
+    model: chatModel(selectedModel),
     system: `${SYSTEM}\n\nToday is ${todayFor(user.timezone)} in their timezone (${user.timezone}).`,
     messages: await convertToModelMessages(messages),
     tools: buildTools({ userId: user.id, timezone: user.timezone }),
@@ -55,5 +57,18 @@ export async function POST(request: Request) {
     temperature: 0.3,
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    messageMetadata: ({ part }) => {
+      if (part.type !== "finish") return undefined;
+      return {
+        chatEvaluation: {
+          model: selectedModel,
+          inputTokens: part.totalUsage.inputTokens ?? null,
+          outputTokens: part.totalUsage.outputTokens ?? null,
+          totalTokens: part.totalUsage.totalTokens ?? null,
+          durationMs: Date.now() - startedAt,
+        },
+      };
+    },
+  });
 }

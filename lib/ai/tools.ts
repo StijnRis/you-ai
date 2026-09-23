@@ -264,7 +264,7 @@ export function buildTools(ctx: ToolContext) {
 
     create_experiment: tool({
       description:
-        "Create a self-experiment: one concrete change, done daily for a fixed number of days, judged on metrics already being tracked. The app compares those metrics during the experiment against the same number of days just before it. Only call this once the person has agreed to a specific plan, or has asked you outright to set one up.",
+        "Create a self-experiment: one concrete change, done daily for a fixed number of days, judged on metrics already being tracked. The app compares those metrics during the experiment against the same number of days just before it. When the person asks you to design, set up, or run an experiment, manage it end-to-end and call this tool once you have inspected their metrics and selected a sensible measurable plan; do not wait for another confirmation unless the request is genuinely ambiguous or unsafe.",
       inputSchema: z.object({
         title: z.string().min(3).max(80).describe("Short name, e.g. 'Cold showers for a week'"),
         intervention: z

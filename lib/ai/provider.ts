@@ -1,4 +1,7 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { CHAT_MODEL_OPTIONS } from "@/lib/ai/models";
+
+export { CHAT_MODEL_OPTIONS } from "@/lib/ai/models";
 
 /**
  * Nebius Token Factory speaks the OpenAI wire format, so the generic
@@ -23,6 +26,8 @@ function provider(): Nebius {
     name: "nebius",
     baseURL: process.env.NEBIUS_BASE_URL ?? "https://api.tokenfactory.nebius.com/v1/",
     apiKey,
+    // Nebius only returns usage for streaming responses when this is enabled.
+    includeUsage: true,
     /*
      * Nebius supports constrained decoding against a JSON schema. Without this
      * the SDK only asks for "some JSON" and the model invents its own field
@@ -34,7 +39,7 @@ function provider(): Nebius {
   return instance;
 }
 
-export const DEFAULT_CHAT_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507";
+export const DEFAULT_CHAT_MODEL = CHAT_MODEL_OPTIONS[0].id;
 
 /** Conversation and tool calling. */
 export const CHAT_MODEL = () => process.env.NEBIUS_CHAT_MODEL || DEFAULT_CHAT_MODEL;
