@@ -1,26 +1,146 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * A dashboard that people read every morning should be calm. One accent, a
+ * neutral ramp with real steps between its greys, and a diverging pair for
+ * correlations — positive and negative have to be told apart at a glance and
+ * by people who cannot distinguish red from green, so the pair is teal/amber
+ * rather than the obvious choice.
+ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --surface-2: #f5f5f4;
+  --border: #e7e5e4;
+  --border-strong: #d6d3d1;
+  --text: #1c1917;
+  --text-muted: #78716c;
+  --text-subtle: #a8a29e;
+
+  --accent: #4338ca;
+  --accent-soft: #eef2ff;
+
+  --positive: #0f9960;
+  --negative: #c2410c;
+  --danger: #dc2626;
+
+  /*
+   * Chart palette, validated with the data-viz palette checker against these
+   * exact surfaces (lightness band, chroma floor, CVD separation, normal-vision
+   * floor, contrast). Do not hand-tune a value without re-running it.
+   *
+   * Categorical is capped at two slots on purpose: the third (aqua) falls below
+   * 3:1 on a white surface, and two is all any chart here needs.
+   */
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  /* Diverging poles for correlation sign, with a neutral — not a hue — midpoint. */
+  --viz-pos: #2a78d6;
+  --viz-neg: #e34948;
+  --viz-mid: #f0efec;
+  --viz-grid: #e7e5e4;
+  --viz-axis: #a8a29e;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #0c0a09;
+    --surface: #17151400;
+    --surface: #171514;
+    --surface-2: #211f1d;
+    --border: #2b2724;
+    --border-strong: #3d3835;
+    --text: #f5f5f4;
+    --text-muted: #a8a29e;
+    --text-subtle: #78716c;
+
+    --accent: #a5b4fc;
+    --accent-soft: #1e1b4b;
+
+    --positive: #2dd4bf;
+    --negative: #fbbf24;
+    --danger: #f87171;
+
+    /* Re-stepped for the dark surface, not flipped — and re-validated on it. */
+    --viz-series-1: #3987e5;
+    --viz-series-2: #d95926;
+    --viz-pos: #3987e5;
+    --viz-neg: #e66767;
+    --viz-mid: #383835;
+    --viz-grid: #2b2724;
+    --viz-axis: #78716c;
   }
 }
 
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-subtle: var(--text-subtle);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-danger: var(--danger);
+  --color-viz-1: var(--viz-series-1);
+  --color-viz-2: var(--viz-series-2);
+  --color-viz-pos: var(--viz-pos);
+  --color-viz-neg: var(--viz-neg);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular figures everywhere a number can change, so columns stop jittering. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Scrollbars, restrained. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.28s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
 }
