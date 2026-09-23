@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import type { CorrelationResult } from "@/lib/stats/correlate";
 import { Badge, Card } from "@/components/ui";
@@ -9,22 +9,147 @@ import { cn, describeLag, formatP } from "@/lib/utils";
 
 type MetricInfo = { key: string; label: string; unit: string | null; category: string | null };
 type SeriesInput = { key: string; points: [string, number][] };
+type ImportanceScores = Record<string, number>;
+
+function correlationId(result: CorrelationResult): string {
+  return `${result.a}|${result.b}|${result.lag}`;
+}
+
+function pairKey(a: string, b: string): string {
+  return [a, b].sort().join("|");
+}
+
+// Stable hackathon priorities. The score describes how useful a relationship
+// would be if it exists; it does not inspect the observed values or Pearson r.
+const HARDCODED_IMPORTANCE: ImportanceScores = {
+  [pairKey("steps", "mood")]: 1.0,
+  [pairKey("steps", "sleep_duration")]: 0.95,
+  [pairKey("sleep_duration", "mood")]: 0.9,
+  [pairKey("sleep_duration", "resting_heart_rate")]: 0.85,
+  [pairKey("mood", "focus_time")]: 0.8,
+  [pairKey("sleep_duration", "focus_time")]: 0.8,
+  [pairKey("weather.sunshine", "mood")]: 0.75,
+
+  // Sleep quality and recovery.
+  [pairKey("sleep_duration", "sleep_score")]: 0.75,
+  [pairKey("sleep_duration", "sleep_efficiency")]: 0.7,
+  [pairKey("sleep_score", "mood")]: 0.85,
+  [pairKey("sleep_efficiency", "mood")]: 0.85,
+  [pairKey("sleep_mental_recovery", "mood")]: 0.95,
+  [pairKey("sleep_mental_recovery", "focus_time")]: 0.85,
+  [pairKey("sleep_physical_recovery", "mood")]: 0.8,
+
+  // Body composition and cardiovascular signals.
+  [pairKey("body_fat_pct", "steps")]: 0.65,
+  [pairKey("body_fat_pct", "sleep_duration")]: 0.55,
+  [pairKey("body_fat_pct", "resting_heart_rate")]: 0.7,
+  [pairKey("body_mass", "steps")]: 0.7,
+  [pairKey("body_mass", "sleep_duration")]: 0.6,
+  [pairKey("body_mass", "body_fat_pct")]: 0.65,
+  [pairKey("body_mass", "resting_heart_rate")]: 0.65,
+  [pairKey("heart_rate", "sleep_duration")]: 0.7,
+  [pairKey("heart_rate", "mood")]: 0.7,
+  [pairKey("heart_rate", "stress")]: 0.85,
+  [pairKey("resting_heart_rate", "stress")]: 0.8,
+
+  // Mental state and productivity.
+  [pairKey("stress", "mood")]: 0.95,
+  [pairKey("stress", "focus_time")]: 0.8,
+  [pairKey("stress", "steps")]: 0.75,
+  [pairKey("sleep_duration", "stress")]: 0.85,
+  [pairKey("sleep_score", "stress")]: 0.85,
+  [pairKey("sleep_efficiency", "stress")]: 0.8,
+  [pairKey("spotify.listening_minutes", "mood")]: 0.35,
+  [pairKey("github.commits", "focus_time")]: 0.35,
+};
+
+const IMPORTANT_THRESHOLD = 0.5;
+
+// Give every other relationship a stable low score instead of showing 0.00.
+// This is intentionally based only on the two metric names, never on the
+// observed correlation value.
+function lowImportanceScoreFor(key: string): number {
+  let hash = 0;
+  for (const character of key) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return (hash % 49 + 1) / 100;
+}
+
+function importanceScoreFor(result: CorrelationResult, scores?: ImportanceScores): number {
+  const key = pairKey(result.a, result.b);
+  return scores?.[key] ?? lowImportanceScoreFor(key);
+}
+
+function correlationScoreFor(result: CorrelationResult): number {
+  return Math.abs(result.pearson);
+}
+
+function finalScoreFor(result: CorrelationResult, scores: ImportanceScores): number {
+  return importanceScoreFor(result, scores) * correlationScoreFor(result);
+}
+
+function isImportantCorrelation(result: CorrelationResult, scores: ImportanceScores): boolean {
+  return importanceScoreFor(result, scores) >= IMPORTANT_THRESHOLD;
+}
 
 export function InsightsView({
   results,
   metrics,
   series,
   defaultMinOverlap,
+  storageKey,
 }: {
   results: CorrelationResult[];
   metrics: MetricInfo[];
   series: SeriesInput[];
   defaultMinOverlap: number;
+  storageKey: string;
 }) {
   const [tab, setTab] = useState<"findings" | "matrix">("findings");
   const [onlySignificant, setOnlySignificant] = useState(true);
+  const [importantOnly, setImportantOnly] = useState(false);
   const [minOverlap, setMinOverlap] = useState(defaultMinOverlap);
   const [focus, setFocus] = useState<string>("");
+
+  const scoringMetrics = useMemo(() => {
+    const keys = new Set(results.flatMap((result) => [result.a, result.b]));
+    return metrics.filter((metric) => keys.has(metric.key));
+  }, [metrics, results]);
+  const scores = HARDCODED_IMPORTANCE;
+
+  const importantIds = useMemo(
+    () => new Set(results.filter((result) => isImportantCorrelation(result, scores)).map(correlationId)),
+    [results, scores],
+  );
+  const importantMetricKeys = useMemo(
+    () => new Set(scoringMetrics.filter((metric) => [...Object.entries(scores)].some(([key, value]) => value >= IMPORTANT_THRESHOLD && key.split("|").includes(metric.key))).map((metric) => metric.key)),
+    [scoringMetrics, scores],
+  );
+
+  // Keep important findings available after refresh without adding database scope
+  // during the hackathon. The key includes the user id so accounts do not share it.
+  useEffect(() => {
+    if (importantIds.size === 0) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+      const next = stored && typeof stored === "object" ? { ...stored } : {};
+      for (const result of results) {
+        if (!importantIds.has(correlationId(result))) continue;
+        const id = correlationId(result);
+        next[id] = {
+          ...result,
+          importanceScore: importanceScoreFor(result, scores),
+          correlationScore: correlationScoreFor(result),
+          finalScore: finalScoreFor(result, scores),
+          savedAt: next[id]?.savedAt ?? new Date().toISOString(),
+        };
+      }
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {
+      // Local storage can be disabled; the visual insight still works normally.
+    }
+  }, [importantIds, results, scores, storageKey]);
 
   const byKey = useMemo(
     () => new Map(metrics.map((metric) => [metric.key, metric])),
@@ -50,17 +175,38 @@ export function InsightsView({
         best.set(pairKey, result);
       }
     }
-    return [...best.values()].sort((x, y) => Math.abs(y.pearson) - Math.abs(x.pearson));
-  }, [results, minOverlap]);
+    return [...best.values()].sort((x, y) => {
+      const importantFirst = Number(isImportantCorrelation(y, scores)) - Number(isImportantCorrelation(x, scores));
+      return importantFirst || finalScoreFor(y, scores) - finalScoreFor(x, scores) || correlationScoreFor(y) - correlationScoreFor(x);
+    });
+  }, [results, minOverlap, scores]);
+
+  const filteredBestPerPair = useMemo(
+    () =>
+      importantOnly
+        ? bestPerPair.filter((result) => isImportantCorrelation(result, scores))
+        : bestPerPair,
+    [bestPerPair, importantOnly, scores],
+  );
 
   const visible = useMemo(
     () =>
-      bestPerPair.filter((result) => {
-        if (onlySignificant && !result.significant) return false;
+      filteredBestPerPair.filter((result) => {
+        if (onlySignificant && !result.significant && !isImportantCorrelation(result, scores)) return false;
         if (focus && result.a !== focus && result.b !== focus) return false;
         return true;
       }),
-    [bestPerPair, onlySignificant, focus],
+    [filteredBestPerPair, onlySignificant, focus, scores],
+  );
+
+  const matrixResults = useMemo(
+    () =>
+      onlySignificant
+        ? filteredBestPerPair.filter(
+            (result) => result.significant || isImportantCorrelation(result, scores),
+          )
+        : filteredBestPerPair,
+    [filteredBestPerPair, onlySignificant, scores],
   );
 
   return (
@@ -119,6 +265,16 @@ export function InsightsView({
           />
           significant only
         </label>
+
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            checked={importantOnly}
+            onChange={(event) => setImportantOnly(event.target.checked)}
+            className="size-4 accent-[var(--accent)]"
+          />
+          important only
+        </label>
       </div>
 
       {tab === "findings" ? (
@@ -127,9 +283,18 @@ export function InsightsView({
           byKey={byKey}
           seriesByKey={seriesByKey}
           allResults={results}
+          importantIds={importantIds}
+          importanceScores={scores}
         />
       ) : (
-        <Matrix results={bestPerPair} metrics={metrics} focus={focus} />
+        <Matrix
+          results={matrixResults}
+          metrics={metrics}
+          focus={focus}
+          importantIds={importantIds}
+          importantMetricKeys={importantMetricKeys}
+          importanceScores={scores}
+        />
       )}
 
       <p className="flex items-start gap-2 text-xs text-muted">
@@ -137,8 +302,8 @@ export function InsightsView({
         <span>
           p-values are adjusted with Benjamini–Hochberg across every pair and shift tested, so
           &ldquo;significant&rdquo; already accounts for how many comparisons were run. It still
-          does not mean one thing caused the other — a third factor, like the season, explains a
-          surprising number of these.
+          does not mean one thing caused the other. Importance is a hard-coded pair score, and
+          final score = importance × correlation strength. Other pairs receive a stable low score below 0.50.
         </span>
       </p>
     </div>
@@ -152,11 +317,15 @@ function FindingsList({
   byKey,
   seriesByKey,
   allResults,
+  importantIds,
+  importanceScores,
 }: {
   results: CorrelationResult[];
   byKey: Map<string, MetricInfo>;
   seriesByKey: Map<string, Map<string, number>>;
   allResults: CorrelationResult[];
+  importantIds: Set<string>;
+  importanceScores: ImportanceScores;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -165,7 +334,7 @@ function FindingsList({
       <Card>
         <p className="py-6 text-center text-sm text-muted">
           Nothing clears those filters. Try lowering the minimum overlap, or turning off
-          &ldquo;significant only&rdquo; to see the weaker patterns.
+          &ldquo;significant only&rdquo; or &ldquo;important only&rdquo; to see more patterns.
         </p>
       </Card>
     );
@@ -176,17 +345,27 @@ function FindingsList({
       {results.map((result) => {
         const id = `${result.a}|${result.b}|${result.lag}`;
         const open = expanded === id;
+        const important = importantIds.has(id);
         const a = byKey.get(result.a);
         const b = byKey.get(result.b);
 
         return (
-          <Card key={id} className="p-0">
+          <Card
+            key={id}
+            className={cn(
+              "p-0 [content-visibility:auto] [contain-intrinsic-size:0_80px]",
+              important && "insight-important",
+              important
+                ? "insight-important-surface border-amber-400/70 shadow-[0_0_0_1px_rgba(245,158,11,0.25)]"
+                : "insight-muted",
+            )}
+          >
             <button
               onClick={() => setExpanded(open ? null : id)}
               aria-expanded={open}
               className="flex w-full items-center gap-4 px-5 py-4 text-left"
             >
-              <CoefficientChip r={result.pearson} />
+              <ScoreChip result={result} important={important} importanceScores={importanceScores} />
 
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">
@@ -197,13 +376,16 @@ function FindingsList({
                   {b?.label ?? result.b}
                 </span>
                 <span className="mt-0.5 block text-xs text-muted">
-                  {describeLag(result.lag)} · {result.n} days · {formatP(result.qValue)}
+                  {describeLag(result.lag)} · {result.n} days · importance {importanceScoreFor(result, importanceScores).toFixed(2)} · correlation {correlationScoreFor(result).toFixed(2)} · {formatP(result.qValue)}
                 </span>
               </span>
 
               <span className="flex shrink-0 items-center gap-2">
-                <Badge tone={result.significant ? "accent" : "neutral"}>
-                  {result.significant ? "significant" : result.strength}
+                <Badge
+                  tone={important || result.significant ? "accent" : "neutral"}
+                  className={important ? "insight-important-badge" : undefined}
+                >
+                  {important ? "Important!" : result.significant ? "significant" : result.strength}
                 </Badge>
                 <ChevronDown
                   className={cn("size-4 text-subtle transition-transform", open && "rotate-180")}
@@ -327,10 +509,16 @@ function Matrix({
   results,
   metrics,
   focus,
+  importantIds,
+  importantMetricKeys,
+  importanceScores,
 }: {
   results: CorrelationResult[];
   metrics: MetricInfo[];
   focus: string;
+  importantIds: Set<string>;
+  importantMetricKeys: Set<string>;
+  importanceScores: ImportanceScores;
 }) {
   const present = useMemo(() => {
     const keys = new Set<string>();
@@ -338,8 +526,13 @@ function Matrix({
       keys.add(result.a);
       keys.add(result.b);
     }
-    return metrics.filter((metric) => keys.has(metric.key));
-  }, [results, metrics]);
+    return metrics
+      .filter((metric) => keys.has(metric.key))
+      .sort(
+        (a, b) =>
+          Number(importantMetricKeys.has(b.key)) - Number(importantMetricKeys.has(a.key)),
+      );
+  }, [results, metrics, importantMetricKeys]);
 
   const lookup = useMemo(() => {
     const map = new Map<string, CorrelationResult>();
@@ -374,11 +567,14 @@ function Matrix({
               <th
                 key={metric.key}
                 scope="col"
-                className="h-24 w-10 align-bottom p-0 font-medium text-muted"
+                className={cn(
+                  "h-24 w-10 align-bottom p-0 font-medium text-muted",
+                  importantMetricKeys.has(metric.key) && "insight-important rounded-lg text-amber-600 dark:text-amber-300",
+                )}
               >
                 <div className="flex h-24 items-end justify-center">
                   <span className="[writing-mode:vertical-rl] rotate-180 whitespace-nowrap pb-1">
-                    {metric.label}
+                    {importantMetricKeys.has(metric.key) ? `✦ ${metric.label}` : metric.label}
                   </span>
                 </div>
               </th>
@@ -386,7 +582,7 @@ function Matrix({
           </tr>
         </thead>
         <tbody>
-          {shown.map((row) => (
+          {shown.map((row, rowIndex) => (
             <tr key={row.key}>
               <th
                 scope="row"
@@ -394,13 +590,19 @@ function Matrix({
               >
                 {row.label}
               </th>
-              {shown.map((column) => {
+              {shown.map((column, columnIndex) => {
+                // The matrix is symmetric. Keep the upper triangle only so the
+                // browser does not calculate and paint the same relationship twice.
+                if (rowIndex > columnIndex) {
+                  return <td key={column.key} className="h-9 w-10" aria-hidden />;
+                }
                 if (row.key === column.key) {
                   return (
                     <td key={column.key} className="h-9 w-10 rounded bg-surface-2" aria-hidden />
                   );
                 }
                 const result = lookup.get(`${row.key}|${column.key}`);
+                const important = result ? importantIds.has(correlationId(result)) : false;
                 return (
                   <td
                     key={column.key}
@@ -408,15 +610,24 @@ function Matrix({
                     // rather than the only way to read the value.
                     title={
                       result
-                        ? `${row.label} vs ${column.label}: r = ${result.pearson.toFixed(2)}, ${describeLag(result.lag)}, n = ${result.n}`
+                        ? `${row.label} vs ${column.label}: final = ${finalScoreFor(result, importanceScores).toFixed(2)}, importance = ${importanceScoreFor(result, importanceScores).toFixed(2)}, correlation = ${correlationScoreFor(result).toFixed(2)}, ${describeLag(result.lag)}, n = ${result.n}`
                         : `${row.label} vs ${column.label}: not enough overlapping days`
                     }
-                    className="tnum h-9 w-10 rounded text-center font-medium"
+                    className={cn(
+                      "tnum h-9 w-10 rounded text-center font-medium",
+                      important && "insight-important ring-2 ring-amber-400 ring-inset",
+                    )}
                     style={
                       result
                         ? {
-                            background: cellColor(result.pearson),
-                            color: Math.abs(result.pearson) > 0.55 ? "#ffffff" : "var(--text)",
+                            background: important
+                              ? `linear-gradient(135deg, rgba(245,158,11,0.22), rgba(251,191,36,0.06)), ${cellColor(result.pearson)}`
+                              : "var(--viz-mid)",
+                            color: important
+                              ? Math.abs(result.pearson) > 0.55
+                                ? "#ffffff"
+                                : "var(--text)"
+                              : "var(--text-muted)",
                           }
                         : undefined
                     }
@@ -443,16 +654,31 @@ function cellColor(r: number): string {
   return `color-mix(in oklab, ${pole} ${weight.toFixed(0)}%, var(--viz-mid))`;
 }
 
-function CoefficientChip({ r }: { r: number }) {
+function ScoreChip({
+  result,
+  important,
+  importanceScores,
+}: {
+  result: CorrelationResult;
+  important: boolean;
+  importanceScores: ImportanceScores;
+}) {
+  const score = finalScoreFor(result, importanceScores);
   return (
     <span
-      className="tnum flex size-11 shrink-0 items-center justify-center rounded-lg text-sm font-semibold"
+      className={cn(
+        "tnum flex size-14 shrink-0 flex-col items-center justify-center rounded-lg font-semibold",
+        important && "insight-important ring-2 ring-amber-400 ring-offset-2 ring-offset-surface",
+      )}
       style={{
-        background: cellColor(r),
-        color: Math.abs(r) > 0.55 ? "#ffffff" : "var(--text)",
+        background: important
+          ? "linear-gradient(135deg, #c2410c 0%, #f97316 48%, #fbbf24 100%)"
+          : "var(--viz-mid)",
+        color: important ? "#ffffff" : "var(--text)",
       }}
     >
-      {r.toFixed(2).replace("0.", ".")}
+      <span className="text-[9px] uppercase tracking-wider opacity-75">final</span>
+      <span className="text-base">{score.toFixed(2)}</span>
     </span>
   );
 }

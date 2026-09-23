@@ -70,6 +70,7 @@ export default async function InsightsPage() {
           category: metric.category,
         }))}
         defaultMinOverlap={settings.correlationMinOverlap}
+        storageKey={`youai:important-correlations:${user.id}`}
         series={correlatable.map((one) => ({
           key: one.typeKey,
           points: [...one.points.entries()],

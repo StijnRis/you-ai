@@ -49,6 +49,28 @@ export type CorrelateOptions = {
 
 const DEFAULTS = { minOverlap: 14, maxLag: 2, alpha: 0.05 };
 
+declare global {
+  // Keep the cache across Next dev module reloads and warm server requests.
+  var __youaiCorrelationCache: Map<string, CorrelationResult[]> | undefined;
+}
+
+function correlationCacheKey(series: DailySeries[], options: CorrelateOptions): string {
+  let hash = 2_166_136_261;
+  const add = (value: string) => {
+    for (let i = 0; i < value.length; i++) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 16_777_619);
+    }
+  };
+
+  add(`${options.minOverlap ?? DEFAULTS.minOverlap}|${options.maxLag ?? DEFAULTS.maxLag}|${options.alpha ?? DEFAULTS.alpha}|${options.focus ?? ""}`);
+  for (const one of series) {
+    add(one.typeKey);
+    for (const [date, value] of one.points) add(`${date}:${value}`);
+  }
+  return String(hash >>> 0);
+}
+
 /**
  * Score every pair of metrics at every lag, then correct for the fact that we
  * just ran hundreds of tests. Without that correction a dashboard of 30 metrics
@@ -59,6 +81,11 @@ export function correlateAll(
   options: CorrelateOptions = {},
 ): CorrelationResult[] {
   const { minOverlap, maxLag, alpha, focus } = { ...DEFAULTS, ...options };
+  const cacheKey = correlationCacheKey(series, { minOverlap, maxLag, alpha, focus });
+  const cache = (globalThis.__youaiCorrelationCache ??= new Map());
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
   const candidates: Omit<CorrelationResult, "qValue" | "significant" | "strength">[] = [];
 
   for (let i = 0; i < series.length; i++) {
@@ -91,9 +118,17 @@ export function correlateAll(
     }
   }
 
-  return benjaminiHochberg(candidates, alpha)
+  const output = benjaminiHochberg(candidates, alpha)
     .map((result) => ({ ...result, strength: strengthOf(result.pearson) }))
     .sort((x, y) => Math.abs(y.pearson) - Math.abs(x.pearson));
+
+  cache.set(cacheKey, output);
+  while (cache.size > 8) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+  return output;
 }
 
 /** Correlate exactly two metrics across a range of lags. */
