@@ -22,6 +22,12 @@ Today people cope by guessing, or by exporting CSVs into a spreadsheet they aban
 
 **It imports data from any source.** Under the GDPR, every service that holds your data has to let you export it. YouAI turns that into its data pipeline: drop in any export and an LLM reads every CSV file in it, works out what each column means, and routes it to the right place in our database. No per-app integration is needed. Your local gym's check-in history, your entire Google Takeout, or data from any app that has ever been built can go in, because under the GDPR all of them have to hand it over.
 
+**Experiments turn insights into action.** Want to try something new? Ask the AI what to try. It looks at your data and searches the web for ways to improve. For example, it might see that you're always exhausted in the evening and find evidence that a cold shower in the morning helps. It then creates an experiment ("shower cold every morning for the coming weeks"). You follow it, and afterwards the dashboard shows how it affected everything, from your mood to your step count to whatever else you want to track.
+
+**Mood, synced or manual.** Mood can come from your smartwatch, which measures signals related to it, or you can log it directly in the dashboard. Manual entries have their own overview.
+
+**Every finding is verifiable.** For each correlation it finds, you can see every data point it's based on, with clear graphs, so you can check for yourself what a result rests on instead of taking the AI's word for it.
+
 Data-driven users already pay for tools that promise a better day (Oura, RescueTime, Notion) and are used to connecting accounts. YouAI is the layer on top that turns all that data into answers and decisions. Personal-data users become the entry point to a B2B product for coaches, therapists and team-wellbeing programmes, where clients share their data with a professional.
 
 <!--
