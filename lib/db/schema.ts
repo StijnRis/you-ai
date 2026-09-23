@@ -339,3 +339,66 @@ export const appSettings = pgTable("app_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
 });
+
+/* -------------------------------------------------------------------------- */
+/*  Experiments: change one thing for a while, then measure what moved        */
+/* -------------------------------------------------------------------------- */
+
+/** A web page the model read while designing an experiment. */
+export type ExperimentSource = { title: string; url: string };
+
+/**
+ * A self-experiment: "cold shower every morning for a week". The data window
+ * is the calendar days from `startDate` to `endDate`; the baseline is the same
+ * number of days immediately before, so the comparison is against how this
+ * person was doing right beforehand rather than against some population norm.
+ *
+ * Only abandonment is stored as a status. Whether an experiment is scheduled,
+ * running or finished follows from its dates, so it can never go stale.
+ */
+export const experiments = pgTable(
+  "experiments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    /** What to actually do each day: "2–3 minutes of cold water at the end of the morning shower". */
+    intervention: text("intervention").notNull(),
+    /** The expected effect, stated so it can be proved wrong. */
+    hypothesis: text("hypothesis").notNull(),
+    /** Why this is worth trying — usually a summary of what the research found. */
+    rationale: text("rationale"),
+    sources: jsonb("sources").$type<ExperimentSource[]>().notNull().default([]),
+    /** Metric keys whose change decides whether it worked. */
+    targetMetrics: jsonb("target_metrics").$type<string[]>().notNull().default([]),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    status: text("status").$type<"active" | "abandoned">().notNull().default("active"),
+    /** What the person concluded once it was over, in their own words. */
+    conclusion: text("conclusion"),
+    createdBy: text("created_by").$type<"ai" | "user">().notNull().default("ai"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("experiments_user_idx").on(t.userId, t.startDate)],
+);
+
+/**
+ * Did they actually do it that day? Kept apart from `events` so that ticking a
+ * box never registers a global event type per experiment, and so the analysis
+ * can separate "days on the protocol" from "days in the window".
+ */
+export const experimentCheckins = pgTable(
+  "experiment_checkins",
+  {
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiments.id, { onDelete: "cascade" }),
+    localDate: date("local_date").notNull(),
+    done: boolean("done").notNull().default(true),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.experimentId, t.localDate] })],
+);
