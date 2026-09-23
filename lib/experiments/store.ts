@@ -4,6 +4,7 @@ import {
   eventTypes,
   experimentCheckins,
   experiments,
+  type ExperimentEvaluation,
   type ExperimentSource,
 } from "@/lib/db/schema";
 import { getDailySeries } from "@/lib/db/queries";
@@ -85,6 +86,51 @@ export async function updateExperiment(
   const [row] = await db
     .update(experiments)
     .set(patch)
+    .where(and(eq(experiments.id, id), eq(experiments.userId, userId)))
+    .returning();
+  return row ?? null;
+}
+
+/**
+ * An experiment that has run its course and not been evaluated yet. This is
+ * what the count on the Experiments tab is for: the whole point of running one
+ * is reading the result, and without a nudge a finished experiment is simply
+ * forgotten.
+ */
+export function awaitsEvaluation(
+  row: Pick<ExperimentRow, "status" | "endDate" | "evaluation">,
+  today: string,
+): boolean {
+  return row.status === "active" && today > row.endDate && row.evaluation === null;
+}
+
+/** How many finished experiments are waiting to be looked at. */
+export async function countAwaitingEvaluation(
+  userId: string,
+  timezone: string,
+): Promise<number> {
+  const today = todayFor(timezone);
+  const rows = await db
+    .select({
+      status: experiments.status,
+      endDate: experiments.endDate,
+      evaluation: experiments.evaluation,
+    })
+    .from(experiments)
+    .where(and(eq(experiments.userId, userId), eq(experiments.status, "active")));
+
+  return rows.filter((row) => awaitsEvaluation(row, today)).length;
+}
+
+export async function saveEvaluation(
+  userId: string,
+  id: string,
+  evaluation: ExperimentEvaluation,
+): Promise<ExperimentRow | null> {
+  if (!isUuid(id)) return null;
+  const [row] = await db
+    .update(experiments)
+    .set({ evaluation, evaluatedAt: new Date() })
     .where(and(eq(experiments.id, id), eq(experiments.userId, userId)))
     .returning();
   return row ?? null;

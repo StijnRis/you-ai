@@ -14,6 +14,8 @@ export interface ApiAdapter<Config = Record<string, unknown>> {
   provider: string;
   label: string;
   description: string;
+  /** Can be connected more than once per user, e.g. several calendars. */
+  multiple?: boolean;
   /** Event types this adapter can produce, registered on first sync. */
   types: Record<string, TypeMeta>;
   /** Reject a bad config before a source row is created. */
@@ -27,7 +29,7 @@ export interface ApiAdapter<Config = Record<string, unknown>> {
     from: string;
     to: string;
     timezone: string;
-  }): Promise<NormalizedEvent[]>;
+  }): Promise<NormalizedEvent[] | { events: NormalizedEvent[]; label?: string }>;
 }
 
 export type AnyApiAdapter = ApiAdapter<never>;

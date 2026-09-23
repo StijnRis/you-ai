@@ -16,8 +16,10 @@ import { scoreSpec } from "@/lib/mapping/detect";
 import { builtinSpecs, ignoreReasonFor } from "@/lib/mapping/builtin";
 import { applySpec } from "@/lib/mapping/apply";
 import { correlateAll, compareWeekendVsWeekday, summarize, pValueFor } from "@/lib/stats/correlate";
-import { localDateOf, shiftLocalDate } from "@/lib/events/time";
+import { eachLocalDate, localDateOf, shiftLocalDate } from "@/lib/events/time";
 import { analyzeExperiment, phaseOf, windowsFor } from "@/lib/experiments/analyze";
+import { awaitsEvaluation } from "@/lib/experiments/store";
+import { briefFor } from "@/lib/experiments/evaluate";
 
 const TZ = "Europe/Madrid";
 
@@ -482,6 +484,145 @@ function verifyExperiments() {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The evaluation flow, with no database and no model: which experiments the
+ * Experiments tab should be counting, and that the brief handed to the model
+ * carries the finished statistics rather than raw daily values.
+ */
+function verifyEvaluationFlow() {
+  section("Experiment evaluation");
+
+  const base = {
+    id: "e1",
+    userId: "u1",
+    title: "Cold shower",
+    intervention: "Two minutes of cold water at the end of the morning shower",
+    hypothesis: "Deep sleep goes up",
+    rationale: null,
+    sources: [],
+    targetMetrics: ["sleep_deep"],
+    startDate: "2024-03-01",
+    endDate: "2024-03-07",
+    status: "active" as const,
+    conclusion: null,
+    evaluation: null,
+    evaluatedAt: null,
+    createdBy: "ai" as const,
+    createdAt: new Date(),
+  };
+
+  check(
+    "a finished, unevaluated experiment is counted",
+    awaitsEvaluation(base, "2024-03-08"),
+  );
+  check(
+    "a running experiment is not counted",
+    !awaitsEvaluation(base, "2024-03-05"),
+  );
+  check(
+    "the last day of the window is not yet finished",
+    !awaitsEvaluation(base, "2024-03-07"),
+    "an experiment ending today still has today's data to come",
+  );
+  check(
+    "evaluating clears it from the count",
+    !awaitsEvaluation(
+      {
+        ...base,
+        evaluation: {
+          verdict: "helped",
+          headline: "h",
+          detail: "d",
+          perMetric: [],
+          recommendation: "r",
+          caveat: null,
+        },
+      },
+      "2024-03-08",
+    ),
+  );
+  check(
+    "an abandoned experiment is not nagged about",
+    !awaitsEvaluation({ ...base, status: "abandoned" }, "2024-03-08"),
+  );
+
+  // The brief is what the model actually sees. It must be finished numbers.
+  // Real spread on both sides: a constant series has no variance, so Welch's
+  // t-test cannot produce a p-value and every verdict collapses to "no change".
+  const baselineDays = [37, 41, 39, 43, 38, 42, 40];
+  const duringDays = [46, 50, 47, 51, 45, 49, 48];
+  const series = [
+    {
+      typeKey: "sleep_deep",
+      points: new Map<string, number>([
+        ...eachLocalDate("2024-02-23", "2024-02-29").map(
+          (d, i) => [d, baselineDays[i]] as [string, number],
+        ),
+        ...eachLocalDate("2024-03-01", "2024-03-07").map(
+          (d, i) => [d, duringDays[i]] as [string, number],
+        ),
+      ]),
+    },
+  ];
+  const report = analyzeExperiment({
+    experiment: base,
+    today: "2024-03-08",
+    series,
+    meta: new Map([["sleep_deep", { label: "Deep sleep", unit: "min", polarity: 1 }]]),
+    targetMetrics: ["sleep_deep"],
+    doneDates: new Set(eachLocalDate("2024-03-01", "2024-03-07")),
+  });
+
+  const brief = briefFor({
+    experiment: base,
+    phase: "finished",
+    today: "2024-03-08",
+    checkins: [],
+    report,
+  });
+
+  check("the brief names the hypothesis", brief.hypothesis === "Deep sleep goes up");
+  check(
+    "the brief carries a percentage change, not raw days",
+    brief.metrics[0].changePct === 20,
+    `${brief.metrics[0].changePct}%`,
+  );
+  check(
+    "the brief carries the baseline and during means",
+    brief.metrics[0].baselineMean === 40 && brief.metrics[0].duringMean === 48,
+    `${brief.metrics[0].baselineMean} → ${brief.metrics[0].duringMean}`,
+  );
+  check(
+    "full adherence is reported as 100%",
+    brief.adherence.ratePct === 100,
+    `${brief.adherence.ratePct}%`,
+  );
+  check(
+    "the statistical verdict is passed through for the model to read",
+    brief.metrics[0].statisticalVerdict === "improved",
+    brief.metrics[0].statisticalVerdict,
+  );
+  check(
+    "no check-ins is distinguished from zero adherence",
+    briefFor({
+      experiment: base,
+      phase: "finished",
+      today: "2024-03-08",
+      checkins: [],
+      report: analyzeExperiment({
+        experiment: base,
+        today: "2024-03-08",
+        series,
+        meta: new Map(),
+        targetMetrics: ["sleep_deep"],
+        doneDates: new Set(),
+      }),
+    }).adherence.note !== null,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
 async function main() {
   console.log("\x1b[1mYouAI verification\x1b[0m");
 
@@ -491,6 +632,7 @@ async function main() {
   verifyTimezones();
   verifyStatistics();
   verifyExperiments();
+  verifyEvaluationFlow();
 
   console.log(
     failures === 0

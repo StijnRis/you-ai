@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Plug,
   Shield,
+  Smile,
   UserRound,
   Wand2,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/insights", label: "Insights", icon: BarChart3 },
+  { href: "/mood", label: "Mood", icon: Smile },
   { href: "/data", label: "Data", icon: Database },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/experiments", label: "Experiments", icon: FlaskConical },
@@ -30,7 +32,18 @@ const LINKS = [
 
 const ADMIN_LINK = { href: "/admin", label: "Admin", icon: Shield };
 
-export function Nav({ isAdmin }: { isAdmin: boolean }) {
+/**
+ * `badges` maps an href to a count worth interrupting for. Today that is only
+ * finished experiments waiting to be read — running one and never looking at
+ * the result is the easiest thing in the app to forget.
+ */
+export function Nav({
+  isAdmin,
+  badges = {},
+}: {
+  isAdmin: boolean;
+  badges?: Record<string, number>;
+}) {
   const pathname = usePathname();
   const links = isAdmin ? [...LINKS, ADMIN_LINK] : LINKS;
 
@@ -39,6 +52,7 @@ export function Nav({ isAdmin }: { isAdmin: boolean }) {
       {links.map((link) => {
         const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
         const Icon = link.icon;
+        const badge = badges[link.href] ?? 0;
         return (
           <Link
             key={link.href}
@@ -53,6 +67,14 @@ export function Nav({ isAdmin }: { isAdmin: boolean }) {
           >
             <Icon className="size-4" aria-hidden />
             {link.label}
+            {badge > 0 ? (
+              <span
+                aria-label={`${badge} ready to evaluate`}
+                className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-bg"
+              >
+                {badge > 9 ? "9+" : badge}
+              </span>
+            ) : null}
           </Link>
         );
       })}

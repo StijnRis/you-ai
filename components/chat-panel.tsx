@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
@@ -26,16 +27,41 @@ function suggestionsFor(metrics: MetricInfo[]): string[] {
 export function ChatPanel({
   metrics,
   initialInput = "",
+  suggestions,
+  emptyHint,
 }: {
   metrics: MetricInfo[];
   initialInput?: string;
+  /** Overrides the generic openers — the Experiments page seeds its own. */
+  suggestions?: string[];
+  emptyHint?: string;
 }) {
+  const router = useRouter();
   const [input, setInput] = useState(initialInput);
   const { messages, sendMessage, status, stop, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
 
   const busy = status === "submitted" || status === "streaming";
+
+  /*
+   * The model can create an experiment mid-conversation. When it does, the
+   * server-rendered page around this panel — the experiment list, the count on
+   * the Experiments tab — is now stale, so refresh it once per new experiment.
+   */
+  const announced = useRef(new Set<string>());
+  useEffect(() => {
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (part.type !== "tool-create_experiment") continue;
+        if (!("state" in part) || part.state !== "output-available") continue;
+        if (!isCreatedExperiment(part.output)) continue;
+        if (announced.current.has(part.output.url)) continue;
+        announced.current.add(part.output.url);
+        router.refresh();
+      }
+    }
+  }, [messages, router]);
 
   function submit(text: string) {
     const trimmed = text.trim();
@@ -52,11 +78,11 @@ export function ChatPanel({
             <p className="text-sm text-muted">
               {metrics.length === 0
                 ? "There is no data to ask about yet — import a file or connect a source first."
-                : `Tracking ${metrics.length} metrics. Try one of these:`}
+                : (emptyHint ?? `Tracking ${metrics.length} metrics. Try one of these:`)}
             </p>
             {metrics.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-2">
-                {suggestionsFor(metrics).map((suggestion) => (
+                {(suggestions ?? suggestionsFor(metrics)).map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => submit(suggestion)}

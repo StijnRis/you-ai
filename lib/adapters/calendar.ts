@@ -48,6 +48,7 @@ const TYPES: Record<string, TypeMeta> = {
 export const calendarAdapter: ApiAdapter<CalendarConfig> = {
   provider: "google-calendar",
   label: "Google Calendar",
+  multiple: true,
   description: "Your events per day and time spent in them, from the calendar's secret iCal address.",
   types: TYPES,
 
@@ -55,7 +56,7 @@ export const calendarAdapter: ApiAdapter<CalendarConfig> = {
     return configSchema.parse(config);
   },
 
-  async fetch({ config, from, to, timezone }): Promise<NormalizedEvent[]> {
+  async fetch({ config, from, to, timezone }) {
     const response = await fetch(config.icalUrl);
     if (!response.ok) throw new Error(`Calendar feed returned ${response.status}.`);
     const text = await response.text();
@@ -80,7 +81,9 @@ export const calendarAdapter: ApiAdapter<CalendarConfig> = {
         { ...common, typeKey: "calendar.event_minutes", value: minutes, valueText: summary, dedupeKey: `${base}:min` },
       );
     }
-    return events;
+    // Google puts the calendar's name in X-WR-CALNAME; use it as the label.
+    const name = text.match(/^X-WR-CALNAME:(.+)$/m)?.[1]?.trim().replace(/\\,/g, ",");
+    return { events, label: name ? `Google Calendar — ${name}` : undefined };
   },
 };
 

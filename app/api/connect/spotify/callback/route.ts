@@ -4,7 +4,14 @@ import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sources } from "@/lib/db/schema";
 import { syncSource } from "@/lib/adapters/sync";
-import { SPOTIFY_STATE_COOKIE, spotifyCallbackUrl, spotifyToken } from "@/lib/adapters/spotify";
+import {
+  SPOTIFY_CREDS_COOKIE,
+  SPOTIFY_STATE_COOKIE,
+  spotifyApp,
+  spotifyCallbackUrl,
+  spotifyToken,
+  unpackCredentials,
+} from "@/lib/adapters/spotify";
 
 export const maxDuration = 60;
 
@@ -13,6 +20,7 @@ export async function GET(request: NextRequest) {
   const back = (query: string) => {
     const response = NextResponse.redirect(new URL(`/sources?${query}`, request.url));
     response.cookies.delete(SPOTIFY_STATE_COOKIE);
+    response.cookies.delete(SPOTIFY_CREDS_COOKIE);
     return response;
   };
   const fail = (message: string) => back(`error=${encodeURIComponent(message)}`);
@@ -26,13 +34,21 @@ export async function GET(request: NextRequest) {
     return fail("Spotify connection was cancelled or expired. Try again.");
   }
 
+  // The credentials the consent screen was opened with — the user's own app,
+  // or the deployment-wide one when the host has configured a shared app.
+  const app = unpackCredentials(request.cookies.get(SPOTIFY_CREDS_COOKIE)?.value) ?? spotifyApp();
+  if (!app) return fail("Spotify credentials went missing. Enter them again and retry.");
+
   let token;
   try {
-    token = await spotifyToken({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: spotifyCallbackUrl(request),
-    });
+    token = await spotifyToken(
+      {
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: spotifyCallbackUrl(request),
+      },
+      app,
+    );
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error));
   }
@@ -47,8 +63,15 @@ export async function GET(request: NextRequest) {
     .catch(() => ({}))) as { display_name?: string; id?: string };
   const name = profile.display_name ?? profile.id ?? "Spotify";
 
-  // Reconnecting refreshes the token on the existing source.
-  const config = { refreshToken: token.refresh_token, displayName: name };
+  // Reconnecting refreshes the token on the existing source. The client id and
+  // secret are stored alongside it because every sync needs them again to
+  // exchange the refresh token for a fresh access token.
+  const config = {
+    clientId: app.clientId,
+    clientSecret: app.clientSecret,
+    refreshToken: token.refresh_token,
+    displayName: name,
+  };
   const label = `Spotify — ${name}`;
   const [existing] = await db
     .select({ id: sources.id })

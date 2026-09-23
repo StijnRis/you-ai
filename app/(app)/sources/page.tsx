@@ -1,10 +1,14 @@
+import { MapPin } from "lucide-react";
+import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { listSources } from "@/lib/db/queries";
 import { apiAdapters } from "@/lib/adapters";
+import { spotifyCallbackUrlFrom } from "@/lib/adapters/spotify";
 import { Badge, Card, SectionHeading } from "@/components/ui";
 import {
   DisconnectButton,
   SimpleConnect,
+  SpotifyConnect,
   SyncButton,
   WeatherConnect,
 } from "@/components/sources-client";
@@ -14,6 +18,13 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
   const user = await requireUser();
   const rows = await listSources(user.id);
   const { error, connected } = await props.searchParams;
+
+  // Shown in the Spotify instructions so the redirect URI can be copied exactly.
+  const headerList = await headers();
+  const proto = headerList.get("x-forwarded-proto") ?? "http";
+  const spotifyCallbackUrl = spotifyCallbackUrlFrom(
+    `${proto}://${headerList.get("host") ?? "localhost:3000"}`,
+  );
 
   const apiSources = rows.filter((row) => row.kind === "api");
   const importSources = rows.filter((row) => row.kind === "import");
@@ -39,12 +50,17 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
 
         <div className="space-y-3">
           {Object.values(apiAdapters).map((adapter) => {
-            const source = apiSources.find((row) => row.provider === adapter.provider);
+            const connected = apiSources.filter((row) => row.provider === adapter.provider);
+            const source = connected[0];
+            // Calendars can be added more than once — work, personal, shared.
+            const showConnect = !source || adapter.multiple;
             return (
               <Card key={adapter.provider}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="max-w-xl">
-                    <h3 className="font-medium">{source?.label ?? adapter.label}</h3>
+                    <h3 className="font-medium">
+                      {adapter.multiple ? adapter.label : (source?.label ?? adapter.label)}
+                    </h3>
                     <p className="mt-1 text-sm text-muted">{adapter.description}</p>
                     <p className="mt-2 text-xs text-muted">
                       Produces{" "}
@@ -55,14 +71,21 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                     </p>
                   </div>
                   <Badge tone={source ? "positive" : "neutral"}>
-                    {source ? "connected" : "direct API"}
+                    {connected.length > 1 ? `${connected.length} connected` : source ? "connected" : "direct API"}
                   </Badge>
                 </div>
 
-                <div className="mt-5 border-t border-border pt-5">
-                  {source ? (
+                {connected.map((source) => (
+                  <div key={source.id} className="mt-5 border-t border-border pt-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
+                        {adapter.multiple ? <p className="text-sm font-medium">{source.label}</p> : null}
+                        {adapter.provider === "open-meteo" ? (
+                          <p className="mb-0.5 flex items-center gap-1.5 text-sm">
+                            <MapPin className="size-3.5 text-muted" aria-hidden />
+                            {weatherPlace(source.config)}
+                          </p>
+                        ) : null}
                         <p className="text-xs text-muted">
                           {source.eventCount.toLocaleString()} records imported ·{" "}
                           {source.lastSyncAt
@@ -82,7 +105,24 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                         />
                       </div>
                     </div>
-                  ) : adapter.provider === "open-meteo" ? (
+                    {adapter.provider === "open-meteo" ? (
+                      <details className="mt-3 text-sm">
+                        <summary className="cursor-pointer text-xs text-muted hover:text-text">
+                          Change location
+                        </summary>
+                        <div className="mt-3">
+                          <WeatherConnect
+                            existing={{ sourceId: source.id, ...(source.config as WeatherPlace) }}
+                          />
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                ))}
+
+                {showConnect ? (
+                <div className="mt-5 border-t border-border pt-5">
+                  {adapter.provider === "open-meteo" ? (
                     <WeatherConnect />
                   ) : adapter.provider === "demo" ? (
                     <SimpleConnect
@@ -92,17 +132,14 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                       hint="Adds a year of made-up data. Disconnect removes it again."
                     />
                   ) : adapter.provider === "spotify" ? (
-                    <div className="space-y-3">
-                      <a
-                        href="/api/connect/spotify"
-                        className="inline-flex h-10 items-center gap-2.5 rounded-lg bg-[#1db954] px-5 text-sm font-medium text-black transition-opacity hover:opacity-90"
-                      >
-                        Connect with Spotify
-                      </a>
-                      <p className="text-xs text-muted">
-                        You&apos;ll be sent to Spotify to approve access to your recently played tracks.
-                      </p>
-                    </div>
+                    <SpotifyConnect callbackUrl={spotifyCallbackUrl} />
+                  ) : adapter.provider === "mood-tracker" ? (
+                    <SimpleConnect
+                      provider="mood-tracker"
+                      label="Fake mood feed"
+                      fields={[]}
+                      hint="Backfills a year of simulated check-ins. Your own logs from the Mood page sit on the same series."
+                    />
                   ) : adapter.provider === "github" ? (
                     <div className="space-y-3">
                       <a
@@ -143,6 +180,7 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                       provider="google-calendar"
                       label="Google Calendar"
                       fields={[
+                        { key: "name", label: "Name", placeholder: "Work", optional: true },
                         {
                           key: "icalUrl",
                           label: "Secret iCal address",
@@ -151,10 +189,11 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                           wide: true,
                         },
                       ]}
-                      hint="In Google Calendar: Settings → your calendar → Integrate calendar → Secret address in iCal format."
+                      hint={`${source ? "Add another calendar. " : ""}In Google Calendar: Settings → your calendar → Integrate calendar → Secret address in iCal format. Any .ics link works (Outlook, Apple).`}
                     />
                   )}
                 </div>
+                ) : null}
               </Card>
             );
           })}
@@ -184,4 +223,15 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
       ) : null}
     </div>
   );
+}
+
+type WeatherPlace = { latitude?: number; longitude?: number; placeName?: string };
+
+function weatherPlace(config: unknown): string {
+  const { latitude, longitude, placeName } = (config ?? {}) as WeatherPlace;
+  const coords =
+    typeof latitude === "number" && typeof longitude === "number"
+      ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+      : "No coordinates";
+  return placeName ? `${placeName} (${coords})` : coords;
 }

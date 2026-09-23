@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { signOutAction } from "@/lib/actions/account";
 import { Nav } from "@/components/nav";
+import { countAwaitingEvaluation } from "@/lib/experiments/store";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
+  // A finished experiment nobody reads is a wasted week, so the count follows
+  // the person around the app until they look at it.
+  const awaitingEvaluation = await countAwaitingEvaluation(user.id, user.timezone).catch(() => 0);
 
   return (
     <div className="min-h-dvh">
@@ -13,15 +16,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <Link href="/dashboard" className="text-base font-semibold tracking-tight">
             You<span className="text-accent">AI</span>
           </Link>
-          <Nav isAdmin={user.role === "admin"} />
-          <form className="ml-auto" action={signOutAction}>
-            <button
-              type="submit"
-              className="rounded-lg px-2.5 py-1.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-text"
-            >
-              Sign out
-            </button>
-          </form>
+          <Nav
+            isAdmin={user.role === "admin"}
+            badges={{ "/experiments": awaitingEvaluation }}
+          />
         </div>
       </header>
 

@@ -10,6 +10,7 @@ import { formatDate, formatNumber, formatP } from "@/lib/utils";
 import { Card, SectionHeading } from "@/components/ui";
 import { PhaseBadge, VerdictBadge, shortDay } from "@/components/experiment-view";
 import { CheckinGrid, CheckinToday, ExperimentActions } from "@/components/experiment-client";
+import { EvaluatePanel } from "@/components/experiment-evaluation";
 
 export default async function ExperimentPage(props: PageProps<"/experiments/[id]">) {
   const user = await requireUser();
@@ -176,6 +177,15 @@ export default async function ExperimentPage(props: PageProps<"/experiments/[id]
             and a short experiment can miss a real but small effect.
           </p>
         </Card>
+
+        <EvaluatePanel
+          experimentId={experiment.id}
+          phase={phase}
+          evaluation={experiment.evaluation}
+          metricLabels={Object.fromEntries(
+            report.outcomes.map((outcome) => [outcome.metric, outcome.label]),
+          )}
+        />
 
         <Card>
           <ExperimentActions

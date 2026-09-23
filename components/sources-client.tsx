@@ -9,11 +9,16 @@ import { Loader2, MapPin, RefreshCw, Unplug } from "lucide-react";
  * hostile, so the browser's geolocation fills them in — but the fields stay
  * editable, because people also want the weather where they *were*.
  */
-export function WeatherConnect() {
+export function WeatherConnect({
+  existing,
+}: {
+  /** When set, the form updates this source's location instead of connecting. */
+  existing?: { sourceId: string; latitude?: number; longitude?: number; placeName?: string };
+} = {}) {
   const router = useRouter();
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-  const [placeName, setPlaceName] = useState("");
+  const [latitude, setLatitude] = useState(existing?.latitude?.toString() ?? "");
+  const [longitude, setLongitude] = useState(existing?.longitude?.toString() ?? "");
+  const [placeName, setPlaceName] = useState(existing?.placeName ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +44,8 @@ export function WeatherConnect() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/sources", {
-        method: "POST",
+      const response = await fetch(existing ? `/api/sources/${existing.sourceId}` : "/api/sources", {
+        method: existing ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           provider: "open-meteo",
@@ -56,10 +61,10 @@ export function WeatherConnect() {
 
       if (payload.error) throw new Error(payload.error);
       if (payload.syncError) {
-        setError(`Connected, but the first sync failed: ${payload.syncError}`);
+        setError(`${existing ? "Updated" : "Connected"}, but the sync failed: ${payload.syncError}`);
       } else {
         setMessage(
-          `Connected. Backfilled ${payload.sync?.eventsStored?.toLocaleString() ?? 0} readings across ${payload.sync?.daysTouched ?? 0} days.`,
+          `${existing ? "Location updated" : "Connected"}. Backfilled ${payload.sync?.eventsStored?.toLocaleString() ?? 0} readings across ${payload.sync?.daysTouched ?? 0} days.`,
         );
       }
       router.refresh();
@@ -100,14 +105,16 @@ export function WeatherConnect() {
           className="flex h-9 items-center gap-2 rounded-lg bg-text px-4 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-30"
         >
           {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
-          Connect
+          {existing ? "Update location" : "Connect"}
         </button>
       </div>
 
       {message ? <p className="text-sm text-positive">{message}</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       <p className="text-xs text-muted">
-        The first sync backfills a year, so there is something to correlate against immediately.
+        {existing
+          ? "Readings for the old location are replaced with a year of history for the new one."
+          : "The first sync backfills a year, so there is something to correlate against immediately."}
       </p>
     </div>
   );
@@ -175,11 +182,16 @@ export function SimpleConnect({
       const response = await fetch("/api/sources", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider, label, config }),
+        body: JSON.stringify({
+          provider,
+          label: typeof config.name === "string" ? `${label} — ${config.name}` : label,
+          config,
+        }),
       });
       const payload = await response.json();
       if (payload.error) throw new Error(payload.error);
       if (payload.syncError) setError(`Connected, but the first sync failed: ${payload.syncError}`);
+      setValues({});
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -307,5 +319,89 @@ export function DisconnectButton({
       </button>
       {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
+  );
+}
+
+/**
+ * Spotify needs your own app, because Spotify only lets an app's own developer
+ * authorise it until it is approved for extended quota — so a shared YouAI app
+ * could not read your plays.
+ *
+ * A plain form POST rather than fetch(): the secret then never reaches the
+ * query string, and the response can redirect straight to Spotify's consent
+ * screen instead of bouncing through client-side navigation.
+ */
+export function SpotifyConnect({ callbackUrl }: { callbackUrl: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <form method="POST" action="/api/connect/spotify" className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block text-xs text-muted">
+          Client ID
+          <input
+            name="clientId"
+            required
+            autoComplete="off"
+            placeholder="4f9a…"
+            className="mt-1 block h-9 w-56 rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none focus:border-border-strong"
+          />
+        </label>
+        <label className="block text-xs text-muted">
+          Client secret
+          <input
+            name="clientSecret"
+            type="password"
+            required
+            autoComplete="off"
+            placeholder="••••••••"
+            className="mt-1 block h-9 w-56 rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none focus:border-border-strong"
+          />
+        </label>
+        <button
+          type="submit"
+          className="flex h-9 items-center gap-2 rounded-lg bg-[#1db954] px-5 text-sm font-medium text-black transition-opacity hover:opacity-90"
+        >
+          Connect with Spotify
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="text-xs text-muted underline-offset-2 hover:text-text hover:underline"
+      >
+        Where do I get these?
+      </button>
+
+      {open ? (
+        <ol className="max-w-xl list-decimal space-y-1 pl-4 text-xs text-muted">
+          <li>
+            Open{" "}
+            <a
+              href="https://developer.spotify.com/dashboard"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-text"
+            >
+              developer.spotify.com/dashboard
+            </a>{" "}
+            and click <strong>Create app</strong>. Name and description can be anything.
+          </li>
+          <li>
+            Set the Redirect URI to exactly{" "}
+            <code className="rounded bg-surface-2 px-1 py-0.5">{callbackUrl}</code>, and tick the{" "}
+            <strong>Web API</strong> box.
+          </li>
+          <li>
+            Open the app&rsquo;s <strong>Settings</strong> and copy the Client ID, then{" "}
+            <strong>View client secret</strong>.
+          </li>
+          <li>
+            Paste both above. They are stored on the source so syncs can refresh your token.
+          </li>
+        </ol>
+      ) : null}
+    </form>
   );
 }

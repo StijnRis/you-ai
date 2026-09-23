@@ -14,7 +14,15 @@ import { localDateOf } from "@/lib/events/time";
  */
 
 const configSchema = z.object({
-  refreshToken: z.string().min(1),
+  /**
+   * The user's own Spotify app. Kept on the source rather than in the
+   * environment so everyone connects their own app — and because the secret
+   * is needed again on every sync to refresh the access token.
+   */
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
+  /** Absent until the OAuth round-trip completes. */
+  refreshToken: z.string().optional(),
   displayName: z.string().optional(),
 });
 
@@ -42,6 +50,24 @@ const TYPES: Record<string, TypeMeta> = {
 };
 
 export const SPOTIFY_STATE_COOKIE = "spotify_connect_state";
+/** Carries the user's app credentials across the OAuth round-trip. */
+export const SPOTIFY_CREDS_COOKIE = "spotify_connect_app";
+
+export function packCredentials(app: SpotifyApp): string {
+  return Buffer.from(JSON.stringify(app)).toString("base64url");
+}
+
+export function unpackCredentials(value: string | undefined): SpotifyApp | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString());
+    return typeof parsed?.clientId === "string" && typeof parsed?.clientSecret === "string"
+      ? { clientId: parsed.clientId, clientSecret: parsed.clientSecret }
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Must match a Redirect URI in the Spotify app exactly (127.0.0.1, not localhost). */
 export function spotifyCallbackUrl(request: Request): string {
@@ -49,7 +75,24 @@ export function spotifyCallbackUrl(request: Request): string {
   return `${origin}/api/connect/spotify/callback`;
 }
 
-export function spotifyApp() {
+/**
+ * The same URL, for a server component that has headers rather than a Request.
+ * Shown to the user so they can paste it into their Spotify app verbatim —
+ * Spotify matches redirect URIs exactly.
+ */
+export function spotifyCallbackUrlFrom(origin: string): string {
+  const base = process.env.AUTH_URL ? new URL(process.env.AUTH_URL).origin : origin;
+  return `${base}/api/connect/spotify/callback`;
+}
+
+export type SpotifyApp = { clientId: string; clientSecret: string };
+
+/**
+ * Deployment-wide credentials, if the host set any. Optional: they exist so an
+ * operator *can* run a shared Spotify app, but the normal path is each user
+ * bringing their own.
+ */
+export function spotifyApp(): SpotifyApp | null {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
   return clientId && clientSecret ? { clientId, clientSecret } : null;
@@ -58,9 +101,8 @@ export function spotifyApp() {
 /** Exchange an auth code or a refresh token at Spotify's token endpoint. */
 export async function spotifyToken(
   params: Record<string, string>,
+  app: SpotifyApp,
 ): Promise<{ access_token?: string; refresh_token?: string; error_description?: string }> {
-  const app = spotifyApp();
-  if (!app) throw new Error("Spotify is not configured (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET).");
   const response = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",
     headers: {
@@ -90,7 +132,14 @@ export const spotifyAdapter: ApiAdapter<SpotifyConfig> = {
   },
 
   async fetch({ config, from, to, timezone }): Promise<NormalizedEvent[]> {
-    const token = await spotifyToken({ grant_type: "refresh_token", refresh_token: config.refreshToken });
+    if (!config.refreshToken) {
+      throw new Error("Spotify is not authorised yet — finish connecting it on the Sources page.");
+    }
+
+    const token = await spotifyToken(
+      { grant_type: "refresh_token", refresh_token: config.refreshToken },
+      { clientId: config.clientId, clientSecret: config.clientSecret },
+    );
     if (!token.access_token) {
       throw new Error(`Spotify refused the refresh: ${token.error_description ?? "reconnect Spotify"}`);
     }

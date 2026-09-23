@@ -1,5 +1,7 @@
+import { LogOut } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
+import { signOutAction } from "@/lib/actions/account";
 import { db } from "@/lib/db";
 import { accounts, users } from "@/lib/db/schema";
 import { getDataRange, getMetricOverview } from "@/lib/db/queries";
@@ -45,7 +47,18 @@ export default async function ProfilePage() {
           title="Profile"
           description="Your account, and everything it owns."
           action={
-            user.role === "admin" ? <Badge tone="accent">admin</Badge> : null
+            <div className="flex items-center gap-3">
+              {user.role === "admin" ? <Badge tone="accent">admin</Badge> : null}
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-text"
+                >
+                  <LogOut className="size-3.5" aria-hidden />
+                  Sign out
+                </button>
+              </form>
+            </div>
           }
         />
 
