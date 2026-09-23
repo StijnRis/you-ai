@@ -38,7 +38,7 @@ cp .env.example .env.local     # fill in AUTH_SECRET, ADMIN_PASSWORD, NEBIUS_API
 
 pnpm dev:db                    # another terminal: Postgres-in-WASM, nothing to install
 pnpm db:push                   # create the schema
-pnpm db:seed --demo            # conversions + the admin account + 180 days of data
+pnpm db:seed --admin           # conversions + the admin account (sample data: Sources → Sample data)
 pnpm dev
 ```
 
@@ -110,7 +110,7 @@ email first.
 | `pnpm dev` / `pnpm build` | the app |
 | `pnpm dev:db` | in-process Postgres on `:5433` (no Docker) |
 | `pnpm db:push` / `db:generate` / `db:studio` | schema |
-| `pnpm db:seed [--admin\|--demo]` | conversions, the admin account, optionally demo data |
+| `pnpm db:seed [--admin]` | conversions, optionally the admin account |
 | `pnpm verify` | 39 checks: schema, rollup SQL, conversions, timezones, statistics |
 | `pnpm verify:inference` | the model-writes-a-conversion path (needs `NEBIUS_API_KEY`) |
 | `pnpm typecheck` | `tsc --noEmit` |

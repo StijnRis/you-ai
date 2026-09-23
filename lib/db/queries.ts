@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   dailyMetrics,
@@ -105,15 +105,28 @@ export async function getDataRange(
 }
 
 export async function listSources(userId: string) {
+  const [rows, counts] = await Promise.all([
+    db.select().from(sources).where(eq(sources.userId, userId)).orderBy(desc(sources.createdAt)),
+    getEventCounts(userId),
+  ]);
+  const bySource = new Map<string, number>();
+  for (const count of counts) {
+    if (count.sourceId) bySource.set(count.sourceId, (bySource.get(count.sourceId) ?? 0) + count.events);
+  }
+  return rows.map((row) => ({ ...row, eventCount: bySource.get(row.id) ?? 0 }));
+}
+
+/** Event counts per metric per source — the raw material of the Data page. */
+export async function getEventCounts(userId: string) {
   return db
     .select({
-      ...getTableColumns(sources),
-      /** How many events this source has put in the store. */
-      eventCount: sql<number>`(select count(*)::int from ${events} where ${events.sourceId} = ${sources.id})`,
+      typeKey: events.typeKey,
+      sourceId: events.sourceId,
+      events: sql<number>`count(*)::int`,
     })
-    .from(sources)
-    .where(eq(sources.userId, userId))
-    .orderBy(desc(sources.createdAt));
+    .from(events)
+    .where(eq(events.userId, userId))
+    .groupBy(events.typeKey, events.sourceId);
 }
 
 export async function listImports(userId: string, limit = 50) {

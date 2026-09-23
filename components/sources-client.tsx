@@ -255,13 +255,25 @@ export function SyncButton({ sourceId }: { sourceId: string }) {
  * Removing the source drops the stored config (tokens, calendar URLs) but
  * leaves the events it already ingested, so the confirm spells that out.
  */
-export function DisconnectButton({ sourceId, label }: { sourceId: string; label: string }) {
+export function DisconnectButton({
+  sourceId,
+  label,
+  removesData,
+}: {
+  sourceId: string;
+  label: string;
+  /** Sample data is deleted along with its source. */
+  removesData?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function disconnect() {
-    if (!confirm(`Disconnect ${label}? Events already synced stay — only the connection is removed.`)) {
+    const message = removesData
+      ? `Remove ${label}? All of its records are deleted.`
+      : `Disconnect ${label}? Events already synced stay — only the connection is removed.`;
+    if (!confirm(message)) {
       return;
     }
 

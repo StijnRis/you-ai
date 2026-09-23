@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Database,
   FileUp,
   FlaskConical,
   LayoutDashboard,
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/insights", label: "Insights", icon: BarChart3 },
+  { href: "/data", label: "Data", icon: Database },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/experiments", label: "Experiments", icon: FlaskConical },
   { href: "/import", label: "Import", icon: FileUp },

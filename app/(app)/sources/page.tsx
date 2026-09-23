@@ -78,11 +78,19 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                         <DisconnectButton
                           sourceId={source.id}
                           label={source.label ?? adapter.label}
+                          removesData={adapter.provider === "demo"}
                         />
                       </div>
                     </div>
                   ) : adapter.provider === "open-meteo" ? (
                     <WeatherConnect />
+                  ) : adapter.provider === "demo" ? (
+                    <SimpleConnect
+                      provider="demo"
+                      label="Sample data"
+                      fields={[]}
+                      hint="Adds a year of made-up data. Disconnect removes it again."
+                    />
                   ) : adapter.provider === "github" && githubOAuthApp() ? (
                     <div className="space-y-2">
                       <a
