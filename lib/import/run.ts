@@ -42,6 +42,8 @@ export type ImportInput = {
   timezone: string;
   filename: string;
   data: Uint8Array;
+  /** When false, an unrecognised format is rejected instead of being inferred. */
+  allowInference?: boolean;
 };
 
 export async function runImport(input: ImportInput): Promise<ImportOutcome[]> {
@@ -201,6 +203,12 @@ async function resolveSpec(
     const saved = await persistSpec(builtin, "builtin", null);
     await rememberFingerprint(detection.fingerprint, saved.id, null);
     return { spec: builtin, specId: saved.id, matchKind: "builtin" };
+  }
+
+  if (input.allowInference === false) {
+    throw new Error(
+      `No conversion matches ${filename}, and writing new ones is switched off for this instance.`,
+    );
   }
 
   const inferred = await inferSpec(detection, { timezone: input.timezone });

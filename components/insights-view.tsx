@@ -14,14 +14,16 @@ export function InsightsView({
   results,
   metrics,
   series,
+  defaultMinOverlap,
 }: {
   results: CorrelationResult[];
   metrics: MetricInfo[];
   series: SeriesInput[];
+  defaultMinOverlap: number;
 }) {
   const [tab, setTab] = useState<"findings" | "matrix">("findings");
   const [onlySignificant, setOnlySignificant] = useState(true);
-  const [minOverlap, setMinOverlap] = useState(21);
+  const [minOverlap, setMinOverlap] = useState(defaultMinOverlap);
   const [focus, setFocus] = useState<string>("");
 
   const byKey = useMemo(

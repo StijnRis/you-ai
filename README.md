@@ -34,18 +34,74 @@ correlation, chat — neither can tell the difference.
 
 ```bash
 pnpm install
-cp .env.example .env.local     # fill in AUTH_SECRET and NEBIUS_API_KEY
+cp .env.example .env.local     # fill in AUTH_SECRET, ADMIN_PASSWORD, NEBIUS_API_KEY
 
-pnpm dev:db                    # in another terminal: Postgres-in-WASM, nothing to install
+pnpm dev:db                    # another terminal: Postgres-in-WASM, nothing to install
 pnpm db:push                   # create the schema
-pnpm db:seed --demo            # built-in conversions + 180 days of synthetic data
+pnpm db:seed --demo            # conversions + the admin account + 180 days of data
 pnpm dev
 ```
 
-Open <http://localhost:3000> and choose **Continue as demo user**.
+Open <http://localhost:3000> and sign in as `admin@youai.nl` with the password you put
+in `ADMIN_PASSWORD`.
 
-For the real thing, point `DATABASE_URL` at a Neon pooled connection string and drop
-`DATABASE_POOL_MAX`.
+`pnpm dev:db` must stay running — if sign-in fails with `CallbackRouteError`, that is
+usually what stopped. For the real thing, point `DATABASE_URL` at a Neon pooled
+connection string and drop `DATABASE_POOL_MAX`.
+
+## Accounts
+
+Sign-in is required; there is no guest mode. Three ways in, all optional except the
+first:
+
+- **Email and password** — bcrypt, 10-character minimum. **No email verification**, so
+  an account works the moment it is created. That is a deliberate trade for ease of
+  sign-up, and it is the reason the OAuth providers below set
+  `allowDangerousEmailAccountLinking`: someone could register an address they do not
+  own, and the real owner's Google sign-in would then join that account. Turn that flag
+  off in `lib/auth.ts` if you would rather have the friction.
+- **Google** and **GitHub** — set up below.
+
+### Roles
+
+Whoever signs up with `ADMIN_EMAIL` (default `admin@youai.nl`) becomes an admin, by any
+route. Everyone else is a regular user. `/admin` is guarded server-side, and every admin
+server action re-checks the role rather than trusting the page that rendered the button.
+
+Admins can promote and demote, disable sign-in without destroying data, delete accounts,
+and change instance settings. The app refuses to leave itself with no active admin.
+
+### Setting up Google sign-in
+
+1. Go to <https://console.cloud.google.com/apis/credentials>, pick or create a project.
+2. **OAuth consent screen** → External → fill in the app name and your support email.
+   While it is in *Testing*, add yourself under **Test users**.
+3. **Credentials** → **Create credentials** → **OAuth client ID** → **Web application**.
+4. Under **Authorised redirect URIs** add exactly:
+   - `http://localhost:3000/api/auth/callback/google`
+   - `https://your-domain.vercel.app/api/auth/callback/google`
+5. Copy the client ID and secret into `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`.
+
+### Setting up GitHub sign-in
+
+1. Go to <https://github.com/settings/developers> → **OAuth Apps** → **New OAuth App**.
+2. Homepage URL `http://localhost:3000`, Authorization callback URL
+   `http://localhost:3000/api/auth/callback/github`.
+3. **Generate a new client secret**, then copy both into `AUTH_GITHUB_ID` and
+   `AUTH_GITHUB_SECRET`.
+4. A GitHub OAuth app allows only one callback URL, so create a second app for
+   production rather than editing this one.
+
+Each provider's button only appears once both of its variables are set, so the sign-in
+page never offers a route that cannot work.
+
+### Profile
+
+`/profile` shows what the account owns, and lets you change your name, timezone and
+coordinates, set or change a password (accounts created through Google or GitHub start
+without one), and delete the account. Deleting cascades: events, daily metrics, imports,
+sources and any conversions written for your data all go, and it asks you to type your
+email first.
 
 ### Scripts
 
@@ -54,7 +110,7 @@ For the real thing, point `DATABASE_URL` at a Neon pooled connection string and 
 | `pnpm dev` / `pnpm build` | the app |
 | `pnpm dev:db` | in-process Postgres on `:5433` (no Docker) |
 | `pnpm db:push` / `db:generate` / `db:studio` | schema |
-| `pnpm db:seed [--demo]` | built-in conversions, optionally demo data |
+| `pnpm db:seed [--admin\|--demo]` | conversions, the admin account, optionally demo data |
 | `pnpm verify` | 39 checks: schema, rollup SQL, conversions, timezones, statistics |
 | `pnpm verify:inference` | the model-writes-a-conversion path (needs `NEBIUS_API_KEY`) |
 | `pnpm typecheck` | `tsc --noEmit` |
@@ -116,11 +172,19 @@ id and cannot reach another account, however it is prompted. The tools return
 *computed* results rather than raw rows, because a model asked to eyeball 400 numbers
 will invent a trend, while one handed `r = −0.42 over 96 days` reads it correctly.
 
+## Admin settings
+
+`/admin` lists every account and exposes instance-wide options that take effect
+immediately, with no redeploy: whether sign-ups are open, whether unknown formats may be
+sent to the model, the default timezone, the upload size cap, the chat model, and the
+correlation defaults (minimum overlap, maximum lag, significance threshold). Each is
+declared once in `lib/settings-def.ts` — adding one is a single entry, not a migration.
+
 ## Deploying
 
-Vercel + Neon. Set `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID`/`SECRET`,
-`NEBIUS_API_KEY` and `CRON_SECRET`; leave `ALLOW_DEMO_LOGIN` unset. `vercel.json`
-registers the nightly sync at 04:00.
+Vercel + Neon. Set `DATABASE_URL`, `AUTH_SECRET`, `ADMIN_EMAIL`, the OAuth variables you
+want, `NEBIUS_API_KEY` and `CRON_SECRET`. `vercel.json` registers the nightly sync at
+04:00.
 
 Uploads currently stream through the API route, so Vercel's 4.5 MB request limit
 applies. For full Apple Health exports, upload to Vercel Blob from the client first
@@ -134,3 +198,7 @@ and hand the route a URL.
   the endpoint and the stored upload bytes are there.
 - Manual tracking (mood, energy, caffeine entered by hand) is not built; the schema
   already supports it, it needs a form.
+- There is no password reset, because there is no email sending. An admin can set a new
+  password by re-running `pnpm db:seed --admin`, or a user can sign in with Google or
+  GitHub and set one from `/profile`.
+- No rate limiting on the sign-in endpoint.

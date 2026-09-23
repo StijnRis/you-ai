@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { Activity, CloudSun, MessageSquare } from "lucide-react";
-import { getUser, signIn } from "@/lib/auth";
+import { getUser, googleConfigured, githubConfigured } from "@/lib/auth";
+import { signInAction } from "@/lib/actions/account";
+import { SignInForm } from "@/components/auth-forms";
+import { OAuthButtons } from "@/components/oauth-buttons";
 
 export default async function SignInPage() {
   if (await getUser()) redirect("/dashboard");
-
-  const demoEnabled = process.env.ALLOW_DEMO_LOGIN === "1";
-  const githubConfigured = Boolean(process.env.AUTH_GITHUB_ID);
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-5xl flex-col justify-center px-6 py-16">
@@ -37,45 +37,11 @@ export default async function SignInPage() {
 
         <div className="rounded-2xl border border-border bg-surface p-7 shadow-sm">
           <h2 className="text-lg font-semibold tracking-tight">Sign in</h2>
-          <p className="mt-1 text-sm text-muted">Your data stays in your own database.</p>
+          <p className="mt-1 mb-6 text-sm text-muted">Your data stays in your own database.</p>
 
-          <div className="mt-6 space-y-3">
-            {githubConfigured ? (
-              <form
-                action={async () => {
-                  "use server";
-                  await signIn("github", { redirectTo: "/dashboard" });
-                }}
-              >
-                <button
-                  type="submit"
-                  className="w-full rounded-lg bg-text px-4 py-2.5 text-sm font-medium text-bg transition-opacity hover:opacity-90"
-                >
-                  Continue with GitHub
-                </button>
-              </form>
-            ) : (
-              <p className="rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-xs text-muted">
-                GitHub sign-in is not configured. Set <code className="font-mono">AUTH_GITHUB_ID</code>{" "}
-                and <code className="font-mono">AUTH_GITHUB_SECRET</code> to enable it.
-              </p>
-            )}
-
-            {demoEnabled ? (
-              <form
-                action={async () => {
-                  "use server";
-                  await signIn("demo", { redirectTo: "/dashboard" });
-                }}
-              >
-                <button
-                  type="submit"
-                  className="w-full rounded-lg border border-border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-surface-2"
-                >
-                  Continue as demo user
-                </button>
-              </form>
-            ) : null}
+          <SignInForm action={signInAction} />
+          <div className="mt-5">
+            <OAuthButtons google={googleConfigured} github={githubConfigured} />
           </div>
         </div>
       </div>

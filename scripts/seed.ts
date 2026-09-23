@@ -2,8 +2,9 @@
  * Seeds the built-in conversions, and optionally a demo account with enough
  * plausible data that the Insights and Chat views have something to say.
  *
- *   pnpm db:seed            # conversions only
- *   pnpm db:seed --demo     # plus 180 days of synthetic data for the demo user
+ *   pnpm db:seed             # built-in conversions only
+ *   pnpm db:seed --admin     # plus the admin account from ADMIN_EMAIL/ADMIN_PASSWORD
+ *   pnpm db:seed --demo      # plus 180 days of synthetic data for the admin
  */
 import { config } from "dotenv";
 config({ path: [".env.local", ".env"], quiet: true });
@@ -11,14 +12,15 @@ config({ path: [".env.local", ".env"], quiet: true });
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { mappingSpecs, users } from "@/lib/db/schema";
+import { hashPassword } from "@/lib/password";
 import { builtinSpecs } from "@/lib/mapping/builtin";
 import { ingestEvents } from "@/lib/events/ingest";
 import { shiftLocalDate, noonOn, weekdayOf } from "@/lib/events/time";
 import type { NormalizedEvent } from "@/lib/mapping/apply";
 import type { TypeMeta } from "@/lib/mapping/spec";
 
-const DEMO_EMAIL = "demo@youai.local";
-const TZ = "Europe/Madrid";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "admin@youai.nl").toLowerCase();
+const TZ = process.env.SEED_TIMEZONE ?? "Europe/Madrid";
 
 async function seedConversions() {
   for (const spec of builtinSpecs) {
@@ -126,18 +128,56 @@ function event(typeKey: string, at: Date, localDate: string, value: number): Nor
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
-async function seedDemoData() {
-  let [demo] = await db.select().from(users).where(eq(users.email, DEMO_EMAIL)).limit(1);
-  if (!demo) {
-    [demo] = await db
-      .insert(users)
-      .values({ email: DEMO_EMAIL, name: "Demo", timezone: TZ })
-      .returning();
-    console.log("Created the demo user.");
+/**
+ * Create (or repair) the admin account. Safe to re-run: an existing account is
+ * promoted rather than duplicated, and its password is only set if one was
+ * supplied.
+ */
+async function seedAdmin() {
+  const password = process.env.ADMIN_PASSWORD;
+
+  const existing = await db.query.users.findFirst({ where: eq(users.email, ADMIN_EMAIL) });
+
+  if (existing) {
+    await db
+      .update(users)
+      .set({
+        role: "admin",
+        disabledAt: null,
+        ...(password ? { passwordHash: await hashPassword(password) } : {}),
+      })
+      .where(eq(users.id, existing.id));
+    console.log(
+      `Promoted ${ADMIN_EMAIL} to admin${password ? " and reset its password" : ""}.`,
+    );
+    return existing.id;
   }
 
+  if (!password) {
+    console.log(
+      `No account for ${ADMIN_EMAIL} yet. Set ADMIN_PASSWORD and re-run, or just register with that address — it becomes an admin automatically.`,
+    );
+    return null;
+  }
+
+  const [created] = await db
+    .insert(users)
+    .values({
+      email: ADMIN_EMAIL,
+      name: "Admin",
+      role: "admin",
+      timezone: TZ,
+      passwordHash: await hashPassword(password),
+    })
+    .returning();
+
+  console.log(`Created admin ${ADMIN_EMAIL}. Sign in with the password from ADMIN_PASSWORD.`);
+  return created.id;
+}
+
+async function seedDemoData(userId: string) {
   const events = generateDemoData(180);
-  const result = await ingestEvents(demo.id, events, {
+  const result = await ingestEvents(userId, events, {
     types: new Map(Object.entries(DEMO_TYPES)),
   });
 
@@ -145,12 +185,21 @@ async function seedDemoData() {
     `Seeded ${result.inserted.toLocaleString()} demo events across ${result.daysTouched} days` +
       (result.dateRange ? ` (${result.dateRange.from} – ${result.dateRange.to}).` : "."),
   );
-  console.log("Sign in as the demo user to see them (ALLOW_DEMO_LOGIN=1).");
 }
 
 async function main() {
   await seedConversions();
-  if (process.argv.includes("--demo")) await seedDemoData();
+
+  const wantsAdmin = process.argv.includes("--admin") || process.argv.includes("--demo");
+  const adminId = wantsAdmin ? await seedAdmin() : null;
+
+  if (process.argv.includes("--demo")) {
+    if (!adminId) {
+      console.log("Skipping demo data: there is no admin account to attach it to.");
+    } else {
+      await seedDemoData(adminId);
+    }
+  }
   process.exit(0);
 }
 

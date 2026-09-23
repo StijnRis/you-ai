@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { signOut } from "@/lib/auth";
+import { signOutAction } from "@/lib/actions/account";
 import { Nav } from "@/components/nav";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -13,14 +13,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <Link href="/dashboard" className="text-base font-semibold tracking-tight">
             You<span className="text-accent">AI</span>
           </Link>
-          <Nav />
-          <form
-            className="ml-auto"
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/signin" });
-            }}
-          >
+          <Nav isAdmin={user.role === "admin"} />
+          <form className="ml-auto" action={signOutAction}>
             <button
               type="submit"
               className="rounded-lg px-2.5 py-1.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-text"

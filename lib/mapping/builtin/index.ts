@@ -34,7 +34,7 @@ const appleHealth: MappingSpec = {
       },
       value: { path: "value", transforms: [{ op: "toNumber" }] },
       endTimestamp: { path: "endDate", format: "iso", transforms: [] },
-      externalId: { coalesce: ["startDate"], transforms: [] },
+      externalId: { path: "startDate", transforms: [] },
       skipWhen: { path: "value", is: "notNumeric" },
     },
     {
@@ -99,7 +99,7 @@ const appleHealth: MappingSpec = {
       timestamp: { path: "startDate", format: "iso", transforms: [] },
       endTimestamp: { path: "endDate", format: "iso", transforms: [] },
       value: { const: 1, transforms: [] },
-      meta: { stage: { path: "value", transforms: [] } },
+      meta: [{ name: "stage", field: { path: "value", transforms: [] } }],
     },
   ],
 };
@@ -226,7 +226,7 @@ const stravaActivities: MappingSpec = {
       },
       duration: { path: "Elapsed Time", transforms: [{ op: "toNumber" }] },
       externalId: { path: "Activity ID", transforms: [] },
-      meta: { name: { path: "Activity Name", transforms: [] } },
+      meta: [{ name: "name", field: { path: "Activity Name", transforms: [] } }],
       skipWhen: { path: "Elapsed Time", is: "emptyOrZero" },
     },
     {

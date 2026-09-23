@@ -171,7 +171,7 @@ function referencedPaths(spec: MappingSpec): Set<string> {
     add(emit.timestamp);
     add(emit.endTimestamp);
     add(emit.externalId);
-    for (const field of Object.values(emit.meta ?? {})) add(field);
+    for (const entry of emit.meta ?? []) add(entry.field);
     if (emit.where) paths.add(emit.where.path);
     if (emit.skipWhen) paths.add(emit.skipWhen.path);
   }
