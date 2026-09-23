@@ -4,6 +4,7 @@ import {
   readRecords,
   sniffDelimiter,
   sniffFormat,
+  sniffSkipLines,
   type ExtractedFile,
   type Record_,
 } from "@/lib/readers";
@@ -52,8 +53,15 @@ export function detectFile(file: ExtractedFile): Detection {
 
 function buildReader(format: ReaderSpec["format"], text: string): ReaderSpec {
   switch (format) {
-    case "csv":
-      return { format: "csv", delimiter: sniffDelimiter(text), header: true, skipLines: 0 };
+    case "csv": {
+      const delimiter = sniffDelimiter(text);
+      return {
+        format: "csv",
+        delimiter,
+        header: true,
+        skipLines: sniffSkipLines(text, delimiter),
+      };
+    }
     case "json":
       return { format: "json", recordsPath: findRecordsPath(text) };
     case "ndjson":
@@ -164,6 +172,7 @@ function referencedPaths(spec: MappingSpec): Set<string> {
   };
 
   add(spec.timestamp);
+  add(spec.zoneOffset);
   for (const emit of spec.emit) {
     add(emit.value);
     add(emit.valueText);

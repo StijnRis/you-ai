@@ -276,6 +276,8 @@ export const importStatusEnum = pgEnum("import_status", [
   "applying",
   "done",
   "failed",
+  /** Recognised as part of a known export, and deliberately not imported. */
+  "skipped",
 ]);
 
 /** One uploaded file and what became of it. */
@@ -296,7 +298,7 @@ export const imports = pgTable(
       onDelete: "set null",
     }),
     /** How the spec was chosen: reused by fingerprint, or freshly inferred. */
-    matchKind: text("match_kind").$type<"fingerprint" | "builtin" | "inferred">(),
+    matchKind: text("match_kind").$type<"fingerprint" | "builtin" | "inferred" | "skipped">(),
     stats: jsonb("stats").$type<Record<string, unknown>>(),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

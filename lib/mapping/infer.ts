@@ -45,7 +45,17 @@ Rules:
 - requiredFields in match must be field names that actually appear in the
   sample, and should be the ones that identify this format.
 - Use format "date" for bare calendar days (2024-03-01) and "iso" for full
-  timestamps. Use epoch_s / epoch_ms only when the value is a bare number.`;
+  timestamps. Use epoch_s / epoch_ms only when the value is a bare number.
+- When the measurement is the length of the record rather than a column — a
+  sleep session or a workout given only as a start and an end — set
+  endTimestamp and give the value as { "derived": "duration_min" }. Do not
+  invent a constant value for these.
+- If a field holds the UTC offset the record was made at ("UTC+0100", "+01:00"),
+  set the spec's top-level zoneOffset to it and set timezone to "utc". That is
+  what decides which calendar day an event belongs to, and it is the difference
+  between a holiday abroad landing on the right day and being shifted.
+- Only set timezone "local" when the timestamps are plainly wall-clock readings
+  with no offset recorded anywhere in the file.`;
 
 export type InferenceResult = {
   spec: MappingSpec;

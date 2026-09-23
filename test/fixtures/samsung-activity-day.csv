@@ -1,0 +1,4 @@
+﻿com.samsung.shealth.activity.day_summary,7006011,6
+movement_type,create_sh_ver,energy_type,exercise_time,step_count,exercise_calorie_target,active_time,target,others_time,modify_sh_ver,update_time,floors_target,create_time,floor_count,dynamic_active_time_target,exercise_time_target,goal,longest_active_time,score,move_hourly_count,duration_type,move_hourly_target,distance,dynamic_active_time,calorie,extra_data,deviceuuid,run_time,pkg_name,walk_time,longest_idle_time,datauuid,day_time
+,,,1800000,9965,,6364044,,,,,,,4.0,,,,,117,11,,,7476.2017,,306.3901,,,,,,,day-1,2024-01-18 00:00:00.000,
+,,,0,0,,0,,,,,,,0.0,,,,,0,0,,,0.0,,0.0,,,,,,,day-2,2024-01-19 00:00:00.000,

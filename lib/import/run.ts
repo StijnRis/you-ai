@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { importBlobs, imports, mappingSpecs, sources, specFingerprints } from "@/lib/db/schema";
 import { detectFile, scoreSpec, type Detection } from "@/lib/mapping/detect";
-import { builtinSpecs } from "@/lib/mapping/builtin";
+import { builtinSpecs, ignoreReasonFor } from "@/lib/mapping/builtin";
 import { inferSpec } from "@/lib/mapping/infer";
 import { applySpecToRecords } from "@/lib/mapping/apply";
 import { mappingSpecSchema, type MappingSpec } from "@/lib/mapping/spec";
@@ -22,10 +22,13 @@ import { ingestEvents } from "@/lib/events/ingest";
 export type ImportOutcome = {
   importId: string;
   filename: string;
-  spec: MappingSpec;
-  specId: string;
-  matchKind: "fingerprint" | "builtin" | "inferred";
-  detection: Pick<Detection, "format" | "fields" | "recordCount" | "fingerprint">;
+  /** Absent when the file was recognised and deliberately not imported. */
+  spec: MappingSpec | null;
+  specId: string | null;
+  matchKind: "fingerprint" | "builtin" | "inferred" | "skipped";
+  /** Why a skipped file was skipped, for the import screen. */
+  skipReason?: string;
+  detection: Pick<Detection, "format" | "fields" | "recordCount" | "fingerprint"> | null;
   stats: {
     recordsRead: number;
     eventsBuilt: number;
@@ -44,6 +47,14 @@ export type ImportInput = {
   data: Uint8Array;
 };
 
+/**
+ * How many files in one upload may reach the model. A real export is dozens of
+ * files; recognising them costs nothing, but writing a conversion is a request
+ * each. Everything matched by fingerprint or built-in is free and uncapped —
+ * this only limits genuinely unknown shapes, which is where the cost is.
+ */
+const MAX_INFERENCES_PER_UPLOAD = 6;
+
 export async function runImport(input: ImportInput): Promise<ImportOutcome[]> {
   const files = extractFiles(input.filename, input.data);
   if (files.length === 0) {
@@ -51,11 +62,19 @@ export async function runImport(input: ImportInput): Promise<ImportOutcome[]> {
   }
 
   const outcomes: ImportOutcome[] = [];
-  // A Takeout zip holds dozens of files; process the substantive ones and stop
-  // before an archive of READMEs turns into dozens of inference calls.
-  for (const file of files.slice(0, 12)) {
+  const budget = { inferences: MAX_INFERENCES_PER_UPLOAD };
+
+  for (const file of files) {
+    // Known exports carry a lot of bookkeeping. Recognising it as such beats
+    // both failing on it and paying the model to invent a conversion for it.
+    const skipReason = ignoreReasonFor(file.path);
+    if (skipReason) {
+      outcomes.push(await recordSkip(input, file.path, file.bytes, skipReason));
+      continue;
+    }
+
     try {
-      outcomes.push(await importOneFile(input, file.path, file.text, file.bytes));
+      outcomes.push(await importOneFile(input, file.path, file.text, file.bytes, budget));
     } catch (error) {
       // One unreadable member of an archive shouldn't sink the whole upload.
       await recordFailure(input, file.path, file.bytes, error);
@@ -73,6 +92,7 @@ async function importOneFile(
   path: string,
   text: string,
   bytes: number,
+  budget: { inferences: number },
 ): Promise<ImportOutcome> {
   const detection = detectFile({ path, text, bytes });
 
@@ -105,7 +125,7 @@ async function importOneFile(
   });
 
   try {
-    const resolved = await resolveSpec(input, detection, path);
+    const resolved = await resolveSpec(input, detection, path, budget);
 
     const source = await ensureSource(input.userId, resolved.spec);
     const records = readRecords(text, resolved.spec.reader);
@@ -176,6 +196,7 @@ async function resolveSpec(
   input: ImportInput,
   detection: Detection,
   filename: string,
+  budget: { inferences: number },
 ): Promise<{ spec: MappingSpec; specId: string; matchKind: ImportOutcome["matchKind"] }> {
   const [known] = await db
     .select({ spec: mappingSpecs })
@@ -202,6 +223,14 @@ async function resolveSpec(
     await rememberFingerprint(detection.fingerprint, saved.id, null);
     return { spec: builtin, specId: saved.id, matchKind: "builtin" };
   }
+
+  if (budget.inferences <= 0) {
+    throw new Error(
+      `${filename}: no conversion matched, and this upload has already used its ` +
+        `${MAX_INFERENCES_PER_UPLOAD} new-format allowance. Upload this file on its own to convert it.`,
+    );
+  }
+  budget.inferences--;
 
   const inferred = await inferSpec(detection, { timezone: input.timezone });
   const spec = mappingSpecSchema.parse(inferred.spec);
@@ -308,6 +337,49 @@ async function ensureSource(userId: string, spec: MappingSpec) {
     })
     .returning();
   return created;
+}
+
+/**
+ * Note a file we recognise and chose not to import, so the import screen can
+ * say so. Silence would look like a bug; a failure would be a lie.
+ */
+async function recordSkip(
+  input: ImportInput,
+  path: string,
+  bytes: number,
+  reason: string,
+): Promise<ImportOutcome> {
+  const [row] = await db
+    .insert(imports)
+    .values({
+      userId: input.userId,
+      filename: path,
+      byteSize: bytes,
+      status: "skipped",
+      matchKind: "skipped",
+      error: reason,
+      completedAt: new Date(),
+    })
+    .returning({ id: imports.id });
+
+  return {
+    importId: row.id,
+    filename: path,
+    spec: null,
+    specId: null,
+    matchKind: "skipped",
+    skipReason: reason,
+    detection: null,
+    stats: {
+      recordsRead: 0,
+      eventsBuilt: 0,
+      eventsStored: 0,
+      skipped: 0,
+      typesRegistered: 0,
+      dateRange: null,
+      errors: [],
+    },
+  };
 }
 
 async function recordFailure(

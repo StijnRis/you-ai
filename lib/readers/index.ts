@@ -22,7 +22,7 @@ export type ExtractedFile = {
  */
 export function extractFiles(filename: string, data: Uint8Array): ExtractedFile[] {
   if (!isZip(filename, data)) {
-    return [{ path: filename, text: strFromU8(data), bytes: data.length }];
+    return [{ path: filename, text: stripBom(strFromU8(data)), bytes: data.length }];
   }
 
   const entries = unzipSync(data, {
@@ -30,9 +30,17 @@ export function extractFiles(filename: string, data: Uint8Array): ExtractedFile[
   });
 
   return Object.entries(entries)
-    .map(([path, bytes]) => ({ path, text: strFromU8(bytes), bytes: bytes.length }))
+    .map(([path, bytes]) => ({ path, text: stripBom(strFromU8(bytes)), bytes: bytes.length }))
     .filter((f) => f.bytes > 0)
     .sort((a, b) => b.bytes - a.bytes);
+}
+
+/**
+ * A UTF-8 BOM survives decoding as U+FEFF and would otherwise become part of
+ * the first column's name — "﻿Date" never matches a spec's "Date".
+ */
+export function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
 function isZip(filename: string, data: Uint8Array): boolean {
@@ -73,18 +81,68 @@ export function sniffFormat(path: string, text: string): SourceFormat {
 
 /** The delimiter a CSV actually uses, which is not always a comma. */
 export function sniffDelimiter(text: string): string {
-  const firstLine = text.slice(0, 8192).split("\n")[0] ?? "";
+  // Score over several lines, not just the first: a preamble line ("Samsung
+  // Health,7006011,7") has commas too, but the real table is wider and more
+  // consistent, so the widest *repeated* count wins.
+  const lines = headLines(text, 12);
   const candidates = [",", "\t", ";", "|"];
   let best = ",";
-  let bestCount = 0;
+  let bestScore = 0;
   for (const c of candidates) {
-    const count = firstLine.split(c).length - 1;
-    if (count > bestCount) {
+    const counts = lines.map((line) => line.split(c).length - 1).filter((n) => n > 0);
+    if (counts.length === 0) continue;
+    // The median count, so one odd line cannot pick the delimiter.
+    const median = [...counts].sort((a, b) => a - b)[Math.floor(counts.length / 2)];
+    const score = median * counts.length;
+    if (score > bestScore) {
       best = c;
-      bestCount = count;
+      bestScore = score;
     }
   }
   return best;
+}
+
+/**
+ * How many lines sit above the header row.
+ *
+ * Plenty of exports prepend a title block before the table — a Samsung Health
+ * CSV opens with "com.samsung.shealth.sleep,7006011,11" and only then gives the
+ * column names. Such a line is recognisable by being much narrower than the
+ * rows beneath it, so compare widths rather than hard-coding any one vendor.
+ */
+export function sniffSkipLines(text: string, delimiter: string): number {
+  const lines = headLines(text, 12);
+  if (lines.length < 2) return 0;
+
+  const width = (line: string) => line.split(delimiter).length;
+  // The table's own width: the most common width among the lines below the top.
+  const tally = new Map<number, number>();
+  for (const line of lines.slice(1)) tally.set(width(line), (tally.get(width(line)) ?? 0) + 1);
+  let tableWidth = 0;
+  let seen = 0;
+  for (const [w, count] of tally) {
+    if (count > seen) {
+      tableWidth = w;
+      seen = count;
+    }
+  }
+
+  // Only skip lines that are clearly not part of the table. Requiring the table
+  // to be at least three columns wide keeps single-column files intact.
+  if (tableWidth < 3) return 0;
+  let skip = 0;
+  while (skip < lines.length - 1 && width(lines[skip]) < tableWidth / 2) skip++;
+  return skip;
+}
+
+/** The first `count` non-blank lines, cheaply. */
+function headLines(text: string, count: number): string[] {
+  return text
+    .slice(0, 64 * 1024)
+    .split("\n")
+    .map((line) => line.replace(/\r$/, ""))
+    .filter((line) => line.trim() !== "")
+    .slice(0, count);
 }
 
 /** Parse a file into flat records according to the reader half of a spec. */
@@ -102,7 +160,8 @@ export function readRecords(text: string, reader: ReaderSpec, limit?: number): R
 }
 
 function readCsv(text: string, reader: Extract<ReaderSpec, { format: "csv" }>, limit?: number): Record_[] {
-  const body = reader.skipLines > 0 ? text.split("\n").slice(reader.skipLines).join("\n") : text;
+  const stripped = stripBom(text);
+  const body = reader.skipLines > 0 ? dropLines(stripped, reader.skipLines) : stripped;
   const result = Papa.parse<Record_>(body, {
     header: reader.header,
     delimiter: reader.delimiter,
@@ -110,7 +169,39 @@ function readCsv(text: string, reader: Extract<ReaderSpec, { format: "csv" }>, l
     dynamicTyping: false,
     preview: limit ?? 0,
   });
-  return (result.data as Record_[]).filter((r) => r && typeof r === "object");
+  return (result.data as Record_[])
+    .filter((r) => r && typeof r === "object")
+    .map(dropTrailingExtra);
+}
+
+/** Drop `count` non-blank lines from the front, preserving the rest verbatim. */
+function dropLines(text: string, count: number): string {
+  const lines = text.split("\n");
+  let dropped = 0;
+  let i = 0;
+  while (i < lines.length && dropped < count) {
+    if (lines[i].trim() !== "") dropped++;
+    i++;
+  }
+  return lines.slice(i).join("\n");
+}
+
+/**
+ * Many exports end every data row with the delimiter, giving each row one more
+ * cell than the header. Papa parks the surplus under `__parsed_extra`, which
+ * then pollutes the field list and the fingerprint. When that surplus is only
+ * padding, drop it; when it holds real values the file is genuinely ragged and
+ * keeping it is the honest thing to do.
+ */
+function dropTrailingExtra(record: Record_): Record_ {
+  const extra = record.__parsed_extra;
+  if (!Array.isArray(extra)) return record;
+  if (extra.some((cell) => cell !== null && cell !== undefined && String(cell).trim() !== "")) {
+    return record;
+  }
+  const rest = { ...record };
+  delete rest.__parsed_extra;
+  return rest;
 }
 
 function readNdjson(text: string, limit?: number): Record_[] {
@@ -170,6 +261,15 @@ function readXml(text: string, recordsPath: string, limit?: number): Record_[] {
 /** Resolve "a.b[0].c" against a parsed document. */
 export function getPath(value: unknown, path: string): unknown {
   if (!path) return value;
+
+  // A literal key wins over traversal. CSV headers are flat, and plenty of them
+  // contain dots — Samsung Health names a column
+  // "com.samsung.health.sleep.start_time" — which would otherwise be walked as
+  // seven levels of nesting that do not exist.
+  if (value && typeof value === "object" && path in (value as Record<string, unknown>)) {
+    return (value as Record<string, unknown>)[path];
+  }
+
   let current: unknown = value;
   for (const segment of path.replace(/\[(\d+)\]/g, ".$1").split(".")) {
     if (current === null || current === undefined) return undefined;

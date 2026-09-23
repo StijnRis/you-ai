@@ -74,7 +74,17 @@ export default async function ImportPage() {
                       {stats?.dateRange ? ` · ${stats.dateRange.from} – ${stats.dateRange.to}` : ""}
                     </p>
                     {row.error ? (
-                      <p className="mt-1 text-xs text-danger">{row.error}</p>
+                      // A skipped file stores its reason here too, and that is
+                      // an explanation rather than a problem.
+                      <p
+                        className={
+                          row.status === "skipped"
+                            ? "mt-1 text-xs text-muted"
+                            : "mt-1 text-xs text-danger"
+                        }
+                      >
+                        {row.error}
+                      </p>
                     ) : null}
                   </div>
 
@@ -84,7 +94,9 @@ export default async function ImportPage() {
                         ? "reused"
                         : row.matchKind === "builtin"
                           ? "built-in"
-                          : "inferred"}
+                          : row.matchKind === "skipped"
+                            ? "not imported"
+                            : "inferred"}
                     </Badge>
                   ) : null}
 

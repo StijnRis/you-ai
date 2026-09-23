@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .pglite/
+
+# Real personal-health exports used for local testing — never commit these.
+/example data/

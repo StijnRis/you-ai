@@ -33,6 +33,35 @@ export function localDateOf(instant: Date, timeZone: string): string {
   }
 }
 
+/**
+ * Read a UTC offset out of the shapes exports actually write it in:
+ * "UTC+0100", "GMT-0500", "+01:00", "-05", or a bare number of minutes.
+ * Returns minutes east of UTC, or null if it is not an offset at all.
+ */
+export function parseUtcOffset(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  const text = String(value).trim();
+  // A bare number is already minutes — "60", "-300".
+  if (/^[+-]?\d{1,4}$/.test(text)) {
+    const minutes = Number(text);
+    return Math.abs(minutes) <= 16 * 60 ? minutes : null;
+  }
+
+  const match = text.match(/^(?:UTC|GMT)?\s*([+-])(\d{2}):?(\d{2})?$/i);
+  if (!match) return null;
+  const [, sign, hours, mins] = match;
+  const total = Number(hours) * 60 + Number(mins ?? "0");
+  if (total > 16 * 60) return null;
+  return sign === "-" ? -total : total;
+}
+
+/** The YYYY-MM-DD an instant falls on for someone at a fixed UTC offset. */
+export function localDateAtOffset(instant: Date, offsetMinutes: number): string {
+  return new Date(instant.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
+}
+
 /** Offset of `timeZone` from UTC, in minutes, at a given instant. */
 function offsetMinutes(instant: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {

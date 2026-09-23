@@ -1,5 +1,5 @@
 import { getPath, readRecords, type Record_ } from "@/lib/readers";
-import { fromWallClock, localDateOf } from "@/lib/events/time";
+import { fromWallClock, localDateAtOffset, localDateOf, parseUtcOffset } from "@/lib/events/time";
 import type {
   EmitSpec,
   FieldSpec,
@@ -69,9 +69,15 @@ export function applySpecToRecords(
       continue;
     }
 
+    // The record may carry the offset it was recorded at; when it does, that
+    // beats the user's profile timezone for deciding which day this belongs to.
+    const zoneOffset = spec.zoneOffset
+      ? parseUtcOffset(readField(record, spec.zoneOffset))
+      : null;
+
     for (const emit of spec.emit) {
       try {
-        const event = buildEvent(record, emit, spec, recordTime, options.timezone);
+        const event = buildEvent(record, emit, spec, recordTime, options.timezone, zoneOffset);
         if (!event) {
           skipped++;
           continue;
@@ -94,6 +100,7 @@ function buildEvent(
   spec: MappingSpec,
   recordTime: Date | null,
   userTimezone: string,
+  zoneOffset: number | null,
 ): NormalizedEvent | null {
   if (emit.where && !matchesWhere(record, emit.where)) return null;
   if (emit.skipWhen && shouldSkip(record, emit.skipWhen)) return null;
@@ -107,18 +114,20 @@ function buildEvent(
     ? readTime(record, emit.endTimestamp, spec.timezone, userTimezone)
     : null;
 
-  const rawValue = emit.value ? readField(record, emit.value) : undefined;
-  const value = emit.value ? toNumber(rawValue) : null;
-  const valueText = emit.valueText ? toText(readField(record, emit.valueText)) : null;
-
-  // An event that carries neither a number nor a label measures nothing.
-  if (value === null && valueText === null) return null;
-  if (emit.value && value === null) return null;
-
+  // Duration is resolved before the value, because the value is allowed to *be*
+  // the duration: a sleep record often gives only a start and an end.
   const explicitDuration = emit.duration ? toNumber(readField(record, emit.duration)) : null;
   const durationS =
     explicitDuration ??
     (endedAt ? Math.round((endedAt.getTime() - startedAt.getTime()) / 1000) : null);
+
+  const rawValue = emit.value ? readField(record, emit.value, durationS) : undefined;
+  const value = emit.value ? toNumber(rawValue) : null;
+  const valueText = emit.valueText ? toText(readField(record, emit.valueText, durationS)) : null;
+
+  // An event that carries neither a number nor a label measures nothing.
+  if (value === null && valueText === null) return null;
+  if (emit.value && value === null) return null;
 
   const meta: Record<string, unknown> = {};
   if (emit.meta) {
@@ -140,7 +149,12 @@ function buildEvent(
     durationS,
     value,
     valueText,
-    localDate: localDateOf(startedAt, userTimezone),
+    localDate: (() => {
+      const anchor = emit.dateFrom === "end" ? (endedAt ?? startedAt) : startedAt;
+      return zoneOffset === null
+        ? localDateOf(anchor, userTimezone)
+        : localDateAtOffset(anchor, zoneOffset);
+    })(),
     meta,
     dedupeKey,
   };
@@ -181,10 +195,13 @@ function shouldSkip(record: Record_, skipWhen: NonNullable<EmitSpec["skipWhen"]>
 }
 
 /** Resolve a field spec against a record and run its transforms. */
-export function readField(record: Record_, field: FieldSpec): unknown {
+export function readField(record: Record_, field: FieldSpec, durationS?: number | null): unknown {
   let value: unknown;
 
-  if (field.const !== undefined) {
+  if (field.derived) {
+    if (durationS === null || durationS === undefined) return null;
+    value = field.derived === "duration_min" ? durationS / 60 : durationS;
+  } else if (field.const !== undefined) {
     value = field.const;
   } else if (field.coalesce) {
     for (const path of field.coalesce) {
@@ -306,22 +323,30 @@ function parseLoose(text: string | null, specTimezone: "local" | "utc", userTime
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) return null;
 
-  const hasZone = /(?:Z|[+-]\d{2}:\d{2})$/.test(normalized);
-  if (hasZone || specTimezone === "utc") return parsed;
+  // An explicit offset settles it; nothing else can override what the file says.
+  if (/(?:Z|[+-]\d{2}:\d{2})$/.test(normalized)) return validate(parsed);
 
-  // No zone in the text and the spec says these are wall-clock readings, so
-  // re-anchor: Date parsed it as the *server's* local time, which is wrong.
-  const naive = new Date(
-    Date.UTC(
-      parsed.getFullYear(),
-      parsed.getMonth(),
-      parsed.getDate(),
-      parsed.getHours(),
-      parsed.getMinutes(),
-      parsed.getSeconds(),
-    ),
-  );
-  return validate(fromWallClock(naive, userTimezone));
+  // Otherwise the text is naive, and `Date` has just read it as the *server's*
+  // local time — an accident of where this happens to run. Recover the literal
+  // wall-clock components and anchor them where the spec says they belong.
+  // (A date with no time at all is already parsed as UTC by spec, so its
+  // components have to be read back in UTC too.)
+  const hasClock = /\d{2}:\d{2}/.test(normalized);
+  const naive = hasClock
+    ? new Date(
+        Date.UTC(
+          parsed.getFullYear(),
+          parsed.getMonth(),
+          parsed.getDate(),
+          parsed.getHours(),
+          parsed.getMinutes(),
+          parsed.getSeconds(),
+          parsed.getMilliseconds(),
+        ),
+      )
+    : parsed;
+
+  return validate(specTimezone === "utc" ? naive : fromWallClock(naive, userTimezone));
 }
 
 /**

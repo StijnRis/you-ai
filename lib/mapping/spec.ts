@@ -51,11 +51,22 @@ export const fieldSchema = z
     const: SCALAR.optional(),
     /** First non-empty of several paths — dumps are inconsistent about naming. */
     coalesce: z.array(z.string()).optional(),
+    /**
+     * Read the event's own computed length instead of a column. Sleep and
+     * workout records routinely give only a start and an end, and the
+     * measurement *is* the span between them.
+     */
+    derived: z.enum(["duration_s", "duration_min"]).optional(),
     transforms: z.array(transformSchema).default([]),
   })
-  .refine((f) => f.path !== undefined || f.const !== undefined || f.coalesce !== undefined, {
-    message: "a field must set one of: path, const, coalesce",
-  });
+  .refine(
+    (f) =>
+      f.path !== undefined ||
+      f.const !== undefined ||
+      f.coalesce !== undefined ||
+      f.derived !== undefined,
+    { message: "a field must set one of: path, const, coalesce, derived" },
+  );
 
 export type FieldSpec = z.infer<typeof fieldSchema>;
 
@@ -115,6 +126,13 @@ export const emitSchema = z.object({
   /** Overrides the record-level timestamp for this emit only. */
   timestamp: timeFieldSchema.optional(),
   endTimestamp: timeFieldSchema.optional(),
+  /**
+   * Which end of the event decides the day it counts towards. Sleep is the
+   * reason this exists: a night is credited to the morning you woke up, so two
+   * sleeps either side of one midnight do not pile onto the same date and read
+   * as a nineteen-hour night.
+   */
+  dateFrom: z.enum(["start", "end"]).optional(),
   /** Extra context kept on the event but not used for correlation. */
   meta: z.record(z.string(), fieldSchema).optional(),
   /** Source-provided stable id, when the dump has one. */
@@ -173,6 +191,14 @@ export const mappingSpecSchema = z.object({
    * them as UTC. Dumps rarely say which, so this is worth getting right.
    */
   timezone: z.enum(["local", "utc"]).default("local"),
+  /**
+   * Where the record itself says which UTC offset it was recorded at, e.g.
+   * Samsung Health's `time_offset` ("UTC+0100"). When present it decides the
+   * calendar day an event belongs to, in place of the user's profile timezone —
+   * so a week in Sydney buckets onto Sydney's days rather than Amsterdam's.
+   * Accepts "UTC+0100", "+01:00", "-0500", or a plain number of minutes.
+   */
+  zoneOffset: fieldSchema.optional(),
   /** Record-level timestamp, inherited by every emit that omits its own. */
   timestamp: timeFieldSchema,
   emit: z.array(emitSchema).min(1),

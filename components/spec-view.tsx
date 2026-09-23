@@ -50,6 +50,14 @@ export function SpecView({ spec }: { spec: MappingSpec }) {
             in {spec.timezone === "local" ? "your local time" : "UTC"}
           </span>
         </div>
+
+        {spec.zoneOffset ? (
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
+            Which day an event counts towards comes from
+            <FieldChip field={spec.zoneOffset} />
+            on the record itself, so travel is dated where it happened.
+          </p>
+        ) : null}
       </Card>
 
       <div>
@@ -149,6 +157,13 @@ function Pipeline({ label, field }: { label: string; field: FieldSpec }) {
 }
 
 function FieldChip({ field }: { field: FieldSpec }) {
+  if (field.derived) {
+    return (
+      <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs">
+        {field.derived === "duration_min" ? "length of the event, in minutes" : "length of the event, in seconds"}
+      </code>
+    );
+  }
   if (field.const !== undefined) {
     return (
       <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs">

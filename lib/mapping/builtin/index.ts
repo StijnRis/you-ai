@@ -1,4 +1,5 @@
 import type { MappingSpec } from "@/lib/mapping/spec";
+import { samsungHealthIgnored, samsungHealthSpecs } from "@/lib/mapping/builtin/samsung-health";
 
 /**
  * Conversions that ship with the app. These are the same shape as the ones the
@@ -261,4 +262,29 @@ const stravaActivities: MappingSpec = {
   ],
 };
 
-export const builtinSpecs: MappingSpec[] = [appleHealth, googleFitDaily, stravaActivities];
+export const builtinSpecs: MappingSpec[] = [
+  appleHealth,
+  googleFitDaily,
+  stravaActivities,
+  ...samsungHealthSpecs,
+];
+
+/**
+ * Files a known export contains that are deliberately not imported — either
+ * bookkeeping with no measurements in it, or numbers already imported from a
+ * better source in the same dump. Recognising them is what keeps a forty-file
+ * export from firing forty inference requests.
+ */
+export const ignoredFilePatterns: { pattern: string; reason: string }[] = [...samsungHealthIgnored];
+
+/** The reason this file is skipped, or null if it should be imported. */
+export function ignoreReasonFor(filename: string): string | null {
+  for (const { pattern, reason } of ignoredFilePatterns) {
+    try {
+      if (new RegExp(pattern, "i").test(filename)) return reason;
+    } catch {
+      // A malformed pattern simply does not match.
+    }
+  }
+  return null;
+}

@@ -1,9 +1,9 @@
 import { getUser } from "@/lib/auth";
-import { runImport } from "@/lib/import/run";
+import { runImport, type ImportOutcome } from "@/lib/import/run";
 
 export const maxDuration = 300;
 
-/** 20MB — beyond this the upload should go to blob storage first. */
+/** 20MB per upload — beyond this it should go to blob storage first. */
 const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(request: Request) {
@@ -11,30 +11,55 @@ export async function POST(request: Request) {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const form = await request.formData();
-  const file = form.get("file");
+  // A Samsung Health export is a folder of forty CSVs rather than one archive,
+  // so accept a whole selection, not just the first file.
+  const files = form.getAll("file").filter((entry): entry is File => entry instanceof File);
 
-  if (!(file instanceof File)) {
+  if (files.length === 0) {
     return Response.json({ error: "No file uploaded." }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) {
+
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  if (total > MAX_BYTES) {
     return Response.json(
-      { error: `File is ${(file.size / 1e6).toFixed(1)}MB; the limit is ${MAX_BYTES / 1e6}MB.` },
+      {
+        error: `That is ${(total / 1e6).toFixed(1)}MB across ${files.length} file${
+          files.length === 1 ? "" : "s"
+        }; the limit is ${MAX_BYTES / 1e6}MB. Zip the export, or upload it in batches.`,
+      },
       { status: 413 },
     );
   }
 
-  try {
-    const data = new Uint8Array(await file.arrayBuffer());
-    const outcomes = await runImport({
-      userId: user.id,
-      timezone: user.timezone,
-      filename: file.name,
-      data,
-    });
-    return Response.json({ outcomes });
-  } catch (error) {
-    return Response.json({ error: messageOf(error) }, { status: 400 });
+  const outcomes: ImportOutcome[] = [];
+  const failures: { filename: string; error: string }[] = [];
+
+  for (const file of files) {
+    try {
+      const data = new Uint8Array(await file.arrayBuffer());
+      outcomes.push(
+        ...(await runImport({
+          userId: user.id,
+          timezone: user.timezone,
+          filename: file.name,
+          data,
+        })),
+      );
+    } catch (error) {
+      // One bad file in a forty-file export should not discard the other
+      // thirty-nine; report it alongside what did work.
+      failures.push({ filename: file.name, error: messageOf(error) });
+    }
   }
+
+  if (outcomes.length === 0) {
+    return Response.json(
+      { error: failures[0]?.error ?? "Nothing in this upload could be converted." },
+      { status: 400 },
+    );
+  }
+
+  return Response.json({ outcomes, failures });
 }
 
 function messageOf(error: unknown): string {

@@ -13,7 +13,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { detectFile } from "@/lib/mapping/detect";
 import { scoreSpec } from "@/lib/mapping/detect";
-import { builtinSpecs } from "@/lib/mapping/builtin";
+import { builtinSpecs, ignoreReasonFor } from "@/lib/mapping/builtin";
 import { applySpec } from "@/lib/mapping/apply";
 import { correlateAll, compareWeekendVsWeekday, summarize, pValueFor } from "@/lib/stats/correlate";
 import { localDateOf, shiftLocalDate } from "@/lib/events/time";
@@ -208,6 +208,133 @@ function verifyDetectionAndConversion() {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Samsung Health, which is where the awkward cases live: a preamble line above
+ * the header, column names that are themselves dotted paths, a trailing comma
+ * on every row, and timestamps in UTC whose local day is decided by a separate
+ * offset column.
+ */
+function verifySamsungHealth() {
+  section("Samsung Health export");
+
+  const sleepText = readFileSync("test/fixtures/samsung-sleep.csv", "utf8");
+  const sleepDetection = detectFile({
+    path: "com.samsung.shealth.sleep.20260923104408.csv",
+    text: sleepText,
+    bytes: sleepText.length,
+  });
+
+  check(
+    "preamble line skipped, real header found",
+    sleepDetection.reader.format === "csv" && sleepDetection.reader.skipLines === 1,
+    `skipLines = ${sleepDetection.reader.format === "csv" ? sleepDetection.reader.skipLines : "n/a"}`,
+  );
+  check(
+    "dotted column names survive as field names",
+    sleepDetection.fields.includes("com.samsung.health.sleep.start_time"),
+    `${sleepDetection.fields.length} fields`,
+  );
+  check(
+    "trailing comma does not leak a phantom column",
+    !sleepDetection.fields.includes("__parsed_extra"),
+  );
+  check("rows parsed", sleepDetection.recordCount === 3, `${sleepDetection.recordCount} records`);
+
+  const sleepSpec = builtinSpecs.find((spec) => spec.key === "samsung-health.sleep")!;
+  check(
+    "Samsung sleep built-in matches",
+    scoreSpec(sleepSpec, sleepDetection, "com.samsung.shealth.sleep.20260923104408.csv") > 5,
+    `score ${scoreSpec(sleepSpec, sleepDetection, "com.samsung.shealth.sleep.20260923104408.csv").toFixed(1)}`,
+  );
+  check(
+    "a near-miss built-in does not claim it",
+    scoreSpec(sleepSpec, sleepDetection, "com.samsung.shealth.sleep_goal.20260923104408.csv") > 0 &&
+      builtinSpecs
+        .filter((spec) => spec.key !== "samsung-health.sleep")
+        .every((spec) => scoreSpec(spec, sleepDetection, "com.samsung.shealth.sleep.20260923104408.csv") === 0),
+  );
+
+  const sleep = applySpec(sleepText, sleepSpec, { timezone: TZ });
+  const durations = sleep.events.filter((event) => event.typeKey === "sleep_duration");
+  check("every session produces a duration", durations.length === 3, `${durations.length} of 3`);
+  check(
+    "duration is derived when the column is blank",
+    durations.find((event) => event.dedupeKey.endsWith("sleep-au-1"))?.value === 570,
+    `${durations.find((event) => event.dedupeKey.endsWith("sleep-au-1"))?.value} min`,
+  );
+
+  // The heart of it: the day an event belongs to comes from the record's own
+  // offset, not from the profile timezone. TZ here is Europe/Madrid, so a
+  // profile-timezone reading would put the Sydney night on the 6th.
+  const byId = new Map(durations.map((event) => [event.dedupeKey.split(":").pop(), event]));
+  check(
+    "UTC timestamp read as UTC, not as server local time",
+    byId.get("sleep-eu-1")?.startedAt.toISOString() === "2024-01-17T23:46:00.000Z",
+    byId.get("sleep-eu-1")?.startedAt.toISOString(),
+  );
+  check(
+    "a night past local midnight is dated by the record's own offset",
+    byId.get("sleep-eu-1")?.localDate === "2024-01-18",
+    byId.get("sleep-eu-1")?.localDate,
+  );
+  // Sleep is credited to the morning you woke up, the way Exist.io reads it —
+  // otherwise two sleeps either side of one midnight pile onto the same date
+  // and the day reports a nineteen-hour night.
+  check(
+    "a night is credited to the day you woke up",
+    byId.get("sleep-eu-2")?.localDate === "2024-07-05",
+    `bed 2024-07-04 21:10 local, woke 2024-07-05 → ${byId.get("sleep-eu-2")?.localDate}`,
+  );
+  check(
+    "a night abroad buckets onto the local day there, not at home",
+    byId.get("sleep-au-1")?.localDate === "2024-08-07",
+    `${byId.get("sleep-au-1")?.localDate} (Europe/Madrid would say 2024-08-06)`,
+  );
+
+  // Daily summaries: local midnight already, so no offset involved.
+  const dayText = readFileSync("test/fixtures/samsung-activity-day.csv", "utf8");
+  const dayDetection = detectFile({
+    path: "com.samsung.shealth.activity.day_summary.20260923104408.csv",
+    text: dayText,
+    bytes: dayText.length,
+  });
+  const daySpec = builtinSpecs.find((spec) => spec.key === "samsung-health.activity-day-summary")!;
+  check(
+    "Samsung daily activity built-in matches",
+    scoreSpec(daySpec, dayDetection, "com.samsung.shealth.activity.day_summary.20260923104408.csv") > 5,
+  );
+
+  const day = applySpec(dayText, daySpec, { timezone: TZ });
+  const value = (type: string) => day.events.find((event) => event.typeKey === type)?.value;
+  check("steps read", value("steps") === 9965, `${value("steps")}`);
+  check("metres converted to km", value("distance") === 7.48, `${value("distance")} km`);
+  check("milliseconds converted to minutes", value("active_minutes") === 106, `${value("active_minutes")} min`);
+  check("day_time is taken as a calendar day", day.events[0]?.localDate === "2024-01-18", day.events[0]?.localDate);
+  check(
+    "an empty day contributes nothing",
+    day.events.every((event) => event.localDate === "2024-01-18"),
+    `${day.events.length} events, all on the first day`,
+  );
+
+  // The skip list is what stops a forty-file export firing forty inference
+  // requests — and what stops three tables of daily steps being summed.
+  check(
+    "redundant per-device step tables are skipped by name",
+    ignoreReasonFor("com.samsung.shealth.step_daily_trend.20260923104408.csv") !== null &&
+      ignoreReasonFor("com.samsung.shealth.tracker.pedometer_day_summary.20260923104408.csv") !== null,
+  );
+  check(
+    "the table we do import is not on the skip list",
+    ignoreReasonFor("com.samsung.shealth.activity.day_summary.20260923104408.csv") === null,
+  );
+  check(
+    "an unrelated export is untouched by the skip list",
+    ignoreReasonFor("activities.csv") === null && ignoreReasonFor("export.xml") === null,
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
 function verifyTimezones() {
   section("Timezone handling");
 
@@ -314,6 +441,7 @@ async function main() {
 
   await verifySchemaAndRollup();
   verifyDetectionAndConversion();
+  verifySamsungHealth();
   verifyTimezones();
   verifyStatistics();
 
