@@ -31,9 +31,9 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
             {error}
           </p>
         ) : null}
-        {connected === "github" ? (
+        {connected === "github" || connected === "spotify" ? (
           <p className="mb-3 rounded-lg border border-positive/30 bg-positive/5 px-3 py-2 text-sm text-positive">
-            GitHub connected and synced.
+            {connected === "github" ? "GitHub" : "Spotify"} connected and synced.
           </p>
         ) : null}
 
@@ -91,6 +91,18 @@ export default async function SourcesPage(props: PageProps<"/sources">) {
                       fields={[]}
                       hint="Adds a year of made-up data. Disconnect removes it again."
                     />
+                  ) : adapter.provider === "spotify" ? (
+                    <div className="space-y-3">
+                      <a
+                        href="/api/connect/spotify"
+                        className="inline-flex h-10 items-center gap-2.5 rounded-lg bg-[#1db954] px-5 text-sm font-medium text-black transition-opacity hover:opacity-90"
+                      >
+                        Connect with Spotify
+                      </a>
+                      <p className="text-xs text-muted">
+                        You&apos;ll be sent to Spotify to approve access to your recently played tracks.
+                      </p>
+                    </div>
                   ) : adapter.provider === "github" ? (
                     <div className="space-y-3">
                       <a
