@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ArrowRight, ArrowUp, ExternalLink, FlaskConical, Loader2, Square, Wrench } from "lucide-react";
 import { Card } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -76,13 +78,17 @@ export function ChatPanel({
             <div className="space-y-2">
               {message.parts.map((part, index) => {
                 if (part.type === "text") {
+                  if (message.role === "user") {
+                    return (
+                      <p key={index} className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {part.text}
+                      </p>
+                    );
+                  }
                   return (
-                    <p
-                      key={index}
-                      className="whitespace-pre-wrap text-sm leading-relaxed"
-                    >
-                      {part.text}
-                    </p>
+                    <div key={index} className="markdown text-sm leading-relaxed">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.text}</ReactMarkdown>
+                    </div>
                   );
                 }
                 // Surface which tools ran: it is the difference between an
