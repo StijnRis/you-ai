@@ -7,3 +7,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# Hackathon mode
+
+We are in a hackathon. Speed over polish.
+
+- Work on one feature at a time. Do exactly what was asked — no extra scope, refactors or nice-to-haves.
+- Keep it simple: the smallest change that works. No elaborate abstractions, test harnesses or end-to-end setups.
+- Run `pnpm typecheck` and `pnpm lint` as the check; skip anything slower unless asked.
+- Keep responses short.
