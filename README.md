@@ -32,22 +32,40 @@ correlation, chat — neither can tell the difference.
 
 ## Quick start
 
+Copy the `.env.example` to `.env.local` and fill in `AUTH_SECRET`, `ADMIN_PASSWORD`
+and `NEBIUS_API_KEY`. Then, one command per line — no trailing comments, because
+`cmd.exe` does not treat `#` as one and will pass the rest of the line as arguments:
+
 ```bash
 pnpm install
-cp .env.example .env.local     # fill in AUTH_SECRET, ADMIN_PASSWORD, NEBIUS_API_KEY
+pnpm dev:db
+```
 
-pnpm dev:db                    # another terminal: Postgres-in-WASM, nothing to install
-pnpm db:push                   # create the schema
-pnpm db:seed --admin           # conversions + the admin account (sample data: Sources → Sample data)
+`pnpm dev:db` is Postgres-in-WASM; leave it running in its own terminal. Skip it
+entirely if `DATABASE_URL` already points somewhere real — see below. In a second
+terminal:
+
+```bash
+pnpm db:push
+pnpm db:seed --admin
 pnpm dev
 ```
+
+`db:push` creates the schema, `db:seed --admin` loads the built-in conversions and
+the admin account. Sample data is under Sources → Sample data.
 
 Open <http://localhost:3000> and sign in as `admin@youai.nl` with the password you put
 in `ADMIN_PASSWORD`.
 
 `pnpm dev:db` must stay running — if sign-in fails with `CallbackRouteError`, that is
-usually what stopped. For the real thing, point `DATABASE_URL` at a Neon pooled
-connection string and drop `DATABASE_POOL_MAX`.
+usually what stopped. If it fails with `EADDRINUSE: 127.0.0.1:5433`, one is already
+running and you do not need a second.
+
+**Every `db:` script talks to whatever `DATABASE_URL` is set to.** If that is the
+shared Neon database rather than `localhost:5433`, then `pnpm dev:db` does nothing
+useful and `db:push` / `db:seed` change the database the whole team is using —
+`db:seed --admin` in particular resets the admin password there. Check which one you
+are pointed at before running either.
 
 ## Accounts
 
