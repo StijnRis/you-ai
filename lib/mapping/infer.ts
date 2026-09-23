@@ -45,7 +45,9 @@ Rules:
 - requiredFields in match must be field names that actually appear in the
   sample, and should be the ones that identify this format.
 - Use format "date" for bare calendar days (2024-03-01) and "iso" for full
-  timestamps. Use epoch_s / epoch_ms only when the value is a bare number.`;
+  timestamps. Use epoch_s / epoch_ms only when the value is a bare number.
+- timestamp.path is required and must name a real field from the list. Every
+  emit inherits it unless the emit sets its own.`;
 
 export type InferenceResult = {
   spec: MappingSpec;

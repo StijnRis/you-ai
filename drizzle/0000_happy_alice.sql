@@ -1,5 +1,6 @@
 CREATE TYPE "public"."aggregation" AS ENUM('sum', 'avg', 'min', 'max', 'last', 'count');--> statement-breakpoint
 CREATE TYPE "public"."import_status" AS ENUM('detecting', 'awaiting_review', 'applying', 'done', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."role" AS ENUM('user', 'admin');--> statement-breakpoint
 CREATE TYPE "public"."value_kind" AS ENUM('numeric', 'duration', 'boolean', 'categorical', 'text');--> statement-breakpoint
 CREATE TABLE "account" (
 	"userId" text NOT NULL,
@@ -14,6 +15,13 @@ CREATE TABLE "account" (
 	"id_token" text,
 	"session_state" text,
 	CONSTRAINT "account_provider_providerAccountId_pk" PRIMARY KEY("provider","providerAccountId")
+);
+--> statement-breakpoint
+CREATE TABLE "app_settings" (
+	"key" text PRIMARY KEY NOT NULL,
+	"value" jsonb NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" text
 );
 --> statement-breakpoint
 CREATE TABLE "daily_metrics" (
@@ -128,6 +136,10 @@ CREATE TABLE "user" (
 	"email" text,
 	"emailVerified" timestamp with time zone,
 	"image" text,
+	"password_hash" text,
+	"role" "role" DEFAULT 'user' NOT NULL,
+	"disabled_at" timestamp with time zone,
+	"last_seen_at" timestamp with time zone,
 	"timezone" text DEFAULT 'UTC' NOT NULL,
 	"latitude" double precision,
 	"longitude" double precision,
@@ -143,6 +155,7 @@ CREATE TABLE "verificationToken" (
 );
 --> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_settings" ADD CONSTRAINT "app_settings_updated_by_user_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "daily_metrics" ADD CONSTRAINT "daily_metrics_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "daily_metrics" ADD CONSTRAINT "daily_metrics_type_key_event_types_key_fk" FOREIGN KEY ("type_key") REFERENCES "public"."event_types"("key") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "events" ADD CONSTRAINT "events_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

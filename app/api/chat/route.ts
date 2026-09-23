@@ -1,6 +1,7 @@
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from "ai";
 import { getUser } from "@/lib/auth";
 import { chatModel, assertModelConfigured } from "@/lib/ai/provider";
+import { getSettings } from "@/lib/settings";
 import { buildTools } from "@/lib/ai/tools";
 
 export const maxDuration = 60;
@@ -28,9 +29,10 @@ export async function POST(request: Request) {
   }
 
   const { messages }: { messages: UIMessage[] } = await request.json();
+  const settings = await getSettings();
 
   const result = streamText({
-    model: chatModel(),
+    model: chatModel(settings.chatModel),
     system: SYSTEM,
     messages: await convertToModelMessages(messages),
     tools: buildTools({ userId: user.id, timezone: user.timezone }),

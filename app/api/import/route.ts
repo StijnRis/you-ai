@@ -1,14 +1,15 @@
 import { getUser } from "@/lib/auth";
 import { runImport } from "@/lib/import/run";
+import { getSettings } from "@/lib/settings";
 
 export const maxDuration = 300;
-
-/** 20MB — beyond this the upload should go to blob storage first. */
-const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const user = await getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+
+  const settings = await getSettings();
+  const maxBytes = settings.maxUploadMb * 1024 * 1024;
 
   const form = await request.formData();
   const file = form.get("file");
@@ -16,9 +17,9 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) {
     return Response.json({ error: "No file uploaded." }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) {
+  if (file.size > maxBytes) {
     return Response.json(
-      { error: `File is ${(file.size / 1e6).toFixed(1)}MB; the limit is ${MAX_BYTES / 1e6}MB.` },
+      { error: `File is ${(file.size / 1e6).toFixed(1)}MB; the limit is ${settings.maxUploadMb}MB.` },
       { status: 413 },
     );
   }
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
       timezone: user.timezone,
       filename: file.name,
       data,
+      allowInference: settings.allowInference,
     });
     return Response.json({ outcomes });
   } catch (error) {

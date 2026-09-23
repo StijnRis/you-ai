@@ -179,7 +179,7 @@ function describeTransform(transform: Transform): string {
     case "extract":
       return `extract /${transform.pattern}/`;
     case "map":
-      return `lookup (${Object.keys(transform.table).length} entries)`;
+      return `lookup (${transform.table.length} entries)`;
     case "defaultTo":
       return `default ${JSON.stringify(transform.value)}`;
     default:

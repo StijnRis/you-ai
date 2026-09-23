@@ -111,3 +111,13 @@ export const WEEKDAY_NAMES = [
   "Friday",
   "Saturday",
 ] as const;
+
+/** Does this runtime know the timezone? Guards user-supplied IANA names. */
+export function isValidTimezone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}

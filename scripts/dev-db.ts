@@ -2,11 +2,13 @@
  * A throwaway Postgres for local development, with nothing to install.
  *
  * PGlite is Postgres compiled to WASM; this exposes it on the normal wire
- * protocol, so `DATABASE_URL=postgresql://postgres@localhost:5433/postgres`
+ * protocol, so `DATABASE_URL=postgresql://postgres@127.0.0.1:5433/postgres`
  * works with drizzle, psql and everything else. Data lives in .pglite/ and can
  * be deleted at any time.
  *
  * Production is Neon — this exists so `pnpm dev` needs no Docker daemon.
+ * It must be running for the app to work; if sign-in fails with a
+ * CallbackRouteError, this is usually what stopped.
  *
  *   pnpm dev:db
  */
