@@ -13,7 +13,7 @@ export const nebius = createOpenAICompatible({
 });
 
 /** Conversation and tool calling. */
-export const CHAT_MODEL = process.env.NEBIUS_CHAT_MODEL ?? "meta-llama/Meta-Llama-3.1-70B-Instruct";
+export const CHAT_MODEL = process.env.NEBIUS_CHAT_MODEL ?? "Qwen/Qwen3-235B-A22B-Instruct-2507";
 
 /**
  * Structured extraction (writing conversions). Same default as chat, but split

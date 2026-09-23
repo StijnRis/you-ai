@@ -133,7 +133,8 @@ export function ChatPanel({ metrics }: { metrics: MetricInfo[] }) {
           </button>
         ) : (
           <button
-            type="submit"
+            type="button"
+            onClick={() => submit(input)}
             disabled={!input.trim()}
             aria-label="Send"
             className="flex size-11 items-center justify-center rounded-xl bg-text text-bg transition-opacity hover:opacity-90 disabled:opacity-30"
