@@ -1,4 +1,4 @@
-# YouAI — Hackathon submission
+# YouAI: hackathon submission
 
 <!--
 What did you build, and what problem does it solve? (Required)
@@ -14,21 +14,15 @@ Users: data-driven people who want to optimise their life
 
 ## What did you build, and what problem does it solve?
 
-YouAI is for data-driven people: the ones who already track their life in a dozen places: commits on GitHub, meetings in their calendar, music on Spotify, sleep and steps on a watch. Each app shows one slice, and none can answer the questions that matter: *"Why was last week so unproductive?"*, *"Do meeting-heavy days kill my focus the next day?"*, *"Does a late night of coding wreck my mood?"* The answer is almost always in how two sources relate, and no single app sees both.
+YouAI is for data-driven people who already track their life in many apps: commits on GitHub, meetings in a calendar, sleep and steps on a watch. Each app only shows its own data. None of them can tell you whether meeting-heavy days hurt your focus the next day, because the answer sits between two sources. Today these people guess, or export CSVs into a spreadsheet and give up after a weekend.
 
-Today people cope by guessing, or by exporting CSVs into a spreadsheet they abandon after a weekend. The problem isn't occasional. It comes back every week someone feels off and can't say why.
+YouAI puts everything on one timeline. It connects to GitHub, calendars, Spotify, weather, Apple Health, Google Fit and Samsung Health, and it imports any other export too. Under the GDPR every service has to let you download your data, so an LLM reads the CSV files in the export and maps each column to our database. Your gym's check-in history or a full Google Takeout works without us writing an integration for it.
 
-**YouAI** connects those sources (GitHub, any calendar, Spotify, weather, Apple Health, Google Fit, Samsung Health or any file export) into one timeline. It runs proper statistics across them: correlations with time lags and a correction for testing many pairs at once, so random coincidences don't show up as findings. You can ask questions in plain language and get answers grounded in your own numbers. Then it closes the loop with **experiments**: say *"I want to exercise more"*, and the AI researches evidence-backed approaches on the web and proposes a concrete trial ("no meetings before 11 for two weeks"). It tracks your daily check-ins and measures whether your metrics actually moved compared with the weeks before.
+YouAI then computes correlations across sources, with time lags and a correction for testing many pairs at once. You can open any correlation and see every data point behind it in a graph, so you can check it yourself. You can also ask questions in chat, and the answers use your own numbers.
 
-**It imports data from any source.** Under the GDPR, every service that holds your data has to let you export it. YouAI turns that into its data pipeline: drop in any export and an LLM reads every CSV file in it, works out what each column means, and routes it to the right place in our database. No per-app integration is needed. Your local gym's check-in history, your entire Google Takeout, or data from any app that has ever been built can go in, because under the GDPR all of them have to hand it over.
+Experiments turn a finding into a change. Say you're tired every evening. The AI looks at your data, searches the web, finds that a cold shower in the morning may help, and sets up an experiment for the next few weeks. Afterwards the dashboard compares your mood, steps and other metrics with the weeks before. Mood comes from your smartwatch, or you enter it by hand; manual entries have their own overview.
 
-**Experiments turn insights into action.** Want to try something new? Ask the AI what to try. It looks at your data and searches the web for ways to improve. For example, it might see that you're always exhausted in the evening and find evidence that a cold shower in the morning helps. It then creates an experiment ("shower cold every morning for the coming weeks"). You follow it, and afterwards the dashboard shows how it affected everything, from your mood to your step count to whatever else you want to track.
-
-**Mood, synced or manual.** Mood can come from your smartwatch, which measures signals related to it, or you can log it directly in the dashboard. Manual entries have their own overview.
-
-**Every finding is verifiable.** For each correlation it finds, you can see every data point it's based on, with clear graphs, so you can check for yourself what a result rests on instead of taking the AI's word for it.
-
-Data-driven users already pay for tools that promise a better day (Oura, RescueTime, Notion) and are used to connecting accounts. YouAI is the layer on top that turns all that data into answers and decisions. Personal-data users become the entry point to a B2B product for coaches, therapists and team-wellbeing programmes, where clients share their data with a professional.
+The code is open source and anyone can host it, so people pay us for convenience. There is a free plan with limited AI usage, since AI calls cost us money, and paid tiers above it with a free trial of Pro. Our users can do the maths themselves: if one insight gets them an extra focused hour and their time is worth €40 an hour, that insight has paid for the subscription. Later, coaches, therapists and team-wellbeing programmes could use YouAI with clients who share their data.
 
 <!--
 Models and Token Factory use (Required)
@@ -43,13 +37,13 @@ Criterion: Technical execution and Token Factory use.
 
 ## Models and Token Factory use
 
-All AI in YouAI runs on **Nebius Token Factory**. You can pick which open model the agent uses, so you can go with the one you prefer. We ran a comparison between models (see below) and configured the winner, **Qwen3-235B-A22B-Instruct-2507**, as the default. It fills three roles:
+All AI runs on Nebius Token Factory. Users can pick which open model the agent uses. The default is Qwen3-235B-A22B-Instruct-2507, chosen from the comparison below. It does three jobs:
 
-1. **Agent with tools (chat and experiment design).** The agent works directly against our application backend through tools. It fetches your actual data, creates experiments and can manage everything for you. It answers questions by calling those tools rather than guessing: list metrics, summarise a series, find correlations, compare groups, search the web (Tavily), and create and analyse experiments. It plans multi-step tool sequences, up to 10 steps per answer.
-2. **Structured extraction (reading unknown file formats).** When someone uploads an export we've never seen, the model writes a *conversion* (a JSON description of how that file maps onto our metrics), using Token Factory's JSON-schema-constrained output. The conversion is stored and reused for every later file with the same shape, so each new format reaches the model once.
-3. **Writing the experiment verdict.** When an experiment ends, the model turns the computed before/during/after statistics into a plain-language verdict.
+1. Chat agent. It calls tools on our backend to read your data, find correlations, compare groups, search the web (Tavily), and create and analyse experiments, with up to 10 tool calls per answer.
+2. Reading new file formats. For an export we haven't seen before, it writes a JSON conversion that maps the file onto our metrics, using Token Factory's JSON-schema output. The conversion is saved and reused for later files with the same shape.
+3. Experiment verdicts. When an experiment ends, it explains the before/during/after statistics in plain language.
 
-We chose one large open model with an efficient design (it only runs about 22B of its 235B parameters for each response) because it handles tool-calling and strict JSON output reliably, and it's cheap enough to run on every chat turn. The model can be switched in the settings, so it can be swapped without code changes. **No closed models are used anywhere.** The statistics themselves are computed in code, not by the model.
+Qwen3-235B-A22B activates about 22B of its 235B parameters per token, so it is cheap enough to run on every chat turn, and it handles tool calls and strict JSON output well. No closed models are used. The statistics are computed in code, not by the model.
 
 <!--
 Measurable model advantage (Required)
@@ -68,11 +62,11 @@ TODO: fill in the table with real measurements before submitting.
 
 ## Measurable model advantage
 
-Two parts of the design are measurable without new testing:
-- **Repeat imports are free.** Imports of a format we already know are matched by a fingerprint of the file's shape and cost **0 model tokens**. Only a never-seen format calls the model.
-- **The model gets computed statistics, not raw data.** We give it results such as a correlation coefficient, sample size and corrected significance, instead of hundreds of raw daily numbers. That keeps prompts small, and the model doesn't have to spot trends by eye, which is where it would make things up.
+Two things hold whichever model is used:
+- A file format we already know is matched by a fingerprint of its shape and uses 0 model tokens. Only new formats call the model.
+- The model gets computed statistics (correlation, sample size, corrected p-value) instead of raw daily values. Prompts stay small and the model doesn't have to guess trends from raw numbers.
 
-**Compared against:** [Llama 3.3 70B on Token Factory / GPT-4o / no model (manual conversion)]
+Compared against: [Llama 3.3 70B on Token Factory / GPT-4o / no model (manual conversion)]
 
 | | Qwen3-235B-A22B (ours) | [baseline] |
 |---|---|---|
@@ -97,12 +91,8 @@ don't claim encryption unless it's added.
 
 ## Responsible design
 
-**Your data stays on your device.** We built the hackathon version as a web app because that's what we have the most experience with. The product we're building is local-first: your data lives primarily on your own phone and never leaves it. You can optionally turn on sync between devices to see the same data on your laptop or other phones. Because this is so much personal data, keeping it on your device is the safest default.
+The hackathon version is a web app because that is what we know best. The product will be local-first: your data stays on your phone, with optional sync to your other devices.
 
-**Fully open source.** The repo is public, and we ship exactly that code, so anyone can inspect what we do. If you don't trust us, you can host it yourself, and we have no problem with that.
+The code is open source and we ship exactly that code, so anyone can check what it does or host it themselves.
 
-**Monetisation: pay for convenience.** Since anyone can run it for free, people pay us for convenience, because hardly anyone wants to host it themselves when we can do it for them. We plan several pricing tiers: a fully free plan so people can try it out, with limited AI usage because AI calls cost money, and paid plans with more, including a free trial of Pro.
-
-**Why data-driven people will pay.** Our users think in numbers, so they can put a price on what YouAI gives them straight away. If an insight earns them one extra hour of focused work and their time is worth €40 an hour, that insight is worth €40. After a few actionable insights, the maths is obvious: it's a simple cost-benefit calculation, and the benefits outweigh the subscription cost.
-
-Every AI tool is scoped to the signed-in user in server code. The model never sees or supplies a user ID, so no prompt can reach another person's data. The model gets aggregated statistics rather than raw records, and it's instructed to separate correlation from causation and to say when a result isn't significant. Experiment results are labelled as before/after comparisons with no control group. Users can disconnect any source, and made-up sample data is clearly marked and deleted with one click.
+In the current app every AI tool is scoped to the signed-in user in server code. The model never sees or passes a user ID, so a prompt can't reach someone else's data. It is told to keep correlation and causation apart and to say when a result isn't significant. Experiment results are labelled as before/after comparisons without a control group. You can disconnect any source, and sample data is marked as such and removed in one click.
