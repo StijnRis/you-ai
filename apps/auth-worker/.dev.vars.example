@@ -1,0 +1,5 @@
+# Copy to .dev.vars for `pnpm dev`. Only needed for "Connect GitHub".
+# Create an OAuth app at https://github.com/settings/developers with callback
+# URL http://localhost:8787/oauth/github/callback
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=

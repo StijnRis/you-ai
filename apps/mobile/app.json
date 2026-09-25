@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "YouAI",
+    "slug": "youai",
+    "scheme": "youai",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "app.youai",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "app.youai",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#fbfbfa" }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-background-task",
+      "expo-web-browser",
+      "expo-status-bar",
+      "expo-localization",
+      ["expo-notifications", { "color": "#4338ca" }]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

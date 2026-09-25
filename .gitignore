@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.turbo/
+.expo/
+web-build/
+.wrangler/
+.dev.vars
+.env*.local
+*.tsbuildinfo
+.DS_Store
+ios/
+android/
+.astro/
+test-results/
+playwright-report/

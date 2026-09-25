@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "youai-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "vars": {
+    // Browser origins allowed to call the worker (the Expo web build on Pages, local dev).
+    "ALLOWED_ORIGINS": "http://localhost:8081,http://localhost:19006",
+    "NEBIUS_BASE_URL": "https://api.tokenfactory.nebius.com/v1/",
+    // Prefixes GitHub OAuth may redirect back to: the app's deep-link scheme and web URLs.
+    "APP_REDIRECT_URLS": "youai://,exp://,http://localhost:8081",
+    "GITHUB_CLIENT_ID": ""
+  },
+  // Secrets (not in this file): `pnpm wrangler secret put GITHUB_CLIENT_SECRET`
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 60, "period": 60 }
+    }
+  ]
+}

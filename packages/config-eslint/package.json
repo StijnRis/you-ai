@@ -1,0 +1,13 @@
+{
+  "name": "@youai/config-eslint",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./base": "./base.js"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.39.0",
+    "typescript-eslint": "^8.70.1"
+  }
+}

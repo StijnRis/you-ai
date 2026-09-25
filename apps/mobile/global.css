@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * A dashboard people read every morning should be calm: one accent, a neutral
+ * ramp with real steps between its greys, and a teal/amber diverging pair for
+ * correlations (readable with red/green colour blindness).
+ */
+:root {
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --surface-2: #f5f5f4;
+  --border: #e7e5e4;
+  --border-strong: #d6d3d1;
+  --text: #1c1917;
+  --text-muted: #78716c;
+  --text-subtle: #a8a29e;
+  --accent: #4338ca;
+  --accent-soft: #eef2ff;
+  --positive: #0f9960;
+  --negative: #c2410c;
+  --danger: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0a09;
+    --surface: #171514;
+    --surface-2: #211f1d;
+    --border: #2b2724;
+    --border-strong: #3d3835;
+    --text: #f5f5f4;
+    --text-muted: #a8a29e;
+    --text-subtle: #78716c;
+    --accent: #a5b4fc;
+    --accent-soft: #1e1b4b;
+    --positive: #2dd4bf;
+    --negative: #fbbf24;
+    --danger: #f87171;
+  }
+}

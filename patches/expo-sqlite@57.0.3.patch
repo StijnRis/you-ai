@@ -1,0 +1,57 @@
+diff --git a/web/WorkerChannel.ts b/web/WorkerChannel.ts
+index 7fba380..4a2a2f9 100644
+--- a/web/WorkerChannel.ts
++++ b/web/WorkerChannel.ts
+@@ -40,7 +40,8 @@ export function sendWorkerResult({
+     const resultJson = error != null ? serialize({ error }) : serialize({ result });
+     const resultBytes = new TextEncoder().encode(resultJson);
+     const length = resultBytes.length;
+-    resultArray.set(new Uint32Array([length]), 0);
++    // Write the length as a real uint32; setting a Uint32Array into a Uint8Array kept only its low byte.
++    new DataView(resultBuffer).setUint32(0, length, true);
+     resultArray.set(resultBytes, 4);
+     Atomics.store(lock, 0, RESOLVED);
+   } else {
+@@ -103,7 +104,7 @@ export function invokeWorkerSync<T extends SQLiteWorkerMessageType & keyof Resul
+   const id = messageId++;
+   const lockBuffer = new SharedArrayBuffer(4);
+   const lock = new Int32Array(lockBuffer);
+-  const resultBuffer = new SharedArrayBuffer(1024 * 1024);
++  const resultBuffer = new SharedArrayBuffer(8 * 1024 * 1024);
+   const resultArray = new Uint8Array(resultBuffer);
+ 
+   Atomics.store(lock, 0, PENDING);
+@@ -116,28 +117,15 @@ export function invokeWorkerSync<T extends SQLiteWorkerMessageType & keyof Resul
+     resultBuffer,
+   });
+ 
+-  let i = 0;
+-  // @ts-expect-error: Remove this when TypeScript supports Atomics.pause
+-  const useAtomicsPause = typeof Atomics.pause === 'function';
++  // A time-based limit: 1e6 Atomics.pause() calls is only a few ms on many CPUs.
++  const deadline = performance.now() + 30_000;
+   while (Atomics.load(lock, 0) === PENDING) {
+-    ++i;
+-
+-    if (useAtomicsPause) {
+-      if (i > 1_000_000) {
+-        throw new Error('Sync operation timeout');
+-      }
+-      // @ts-expect-error: Remove this when TypeScript supports Atomics.pause
+-      Atomics.pause();
+-    } else {
+-      // NOTE(kudo): Unfortunate for the busy loop,
+-      // because we don't have a way for main thread to yield its execution to other callbacks.
+-      if (i > 1000_000_000) {
+-        throw new Error('Sync operation timeout');
+-      }
++    if (performance.now() > deadline) {
++      throw new Error("Sync operation timeout");
+     }
+   }
+ 
+-  const length = new Uint32Array(resultArray.buffer, 0, 1)[0];
++  const length = new DataView(resultBuffer).getUint32(0, true);
+   const resultCopy = new Uint8Array(length);
+   resultCopy.set(new Uint8Array(resultArray.buffer, 4, length));
+   const resultJson = new TextDecoder().decode(resultCopy);

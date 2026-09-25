@@ -1,0 +1,27 @@
+{
+  "name": "@youai/auth-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "deploy": "wrangler deploy",
+    "typegen": "wrangler types",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "hono": "^4.13.9"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260925.1",
+    "@youai/config-eslint": "workspace:*",
+    "@youai/config-ts": "workspace:*",
+    "eslint": "^9",
+    "typescript": "~5.9.3",
+    "wrangler": "^4.140.0",
+    "vitest": "^5.0.2"
+  }
+}

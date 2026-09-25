@@ -1,0 +1,4 @@
+# Cloudflare Pages: cross-origin isolation, required by expo-sqlite on web.
+/*
+  Cross-Origin-Embedder-Policy: credentialless
+  Cross-Origin-Opener-Policy: same-origin

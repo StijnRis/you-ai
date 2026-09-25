@@ -1,0 +1,136 @@
+---
+/**
+ * The one-page marketing site. Static, no JS shipped. The "Open the app" link
+ * points at the Expo web build on Cloudflare Pages; set PUBLIC_APP_URL at
+ * build time to change it.
+ */
+const appUrl = import.meta.env.PUBLIC_APP_URL ?? "https://app.youai.pages.dev";
+
+const ideas = [
+  {
+    title: "Everything you already track, in one place",
+    body: "Activity, sleep, mood, weather, calendar, music, code. Import an export file or connect a live source, and it all lands in one timeline.",
+  },
+  {
+    title: "Patterns you can't see in any single app",
+    body: "YouAI lays every metric over every other one, with delays of up to a few days, and reports only the relationships that hold up statistically.",
+  },
+  {
+    title: "Ask questions in plain language",
+    body: "“Do I sleep worse after late meetings?” The assistant answers with your own numbers, how many days they cover, and how sure it is.",
+  },
+  {
+    title: "Run small experiments on yourself",
+    body: "Pick a goal, and YouAI proposes an evidence-backed change for a week or two, reminds you to check in, and tells you afterwards what actually moved.",
+  },
+];
+
+const features = [
+  ["Local-first", "Your data lives in a database on your device. No account needed."],
+  ["Any export", "CSV, JSON, XML, ZIP: Google Fit, Samsung Health, Apple Health and more. Unknown formats are figured out once, then remembered."],
+  ["Live sources", "Weather, GitHub, Google Calendar and Spotify sync automatically."],
+  ["Daily check-in", "A gentle reminder to log your mood, the metric everything else is measured against."],
+  ["Android, iOS and web", "One app, the same everywhere."],
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YouAI: personal analytics that stay yours</title>
+    <meta name="description" content="Bring your activity, sleep, mood and more together, find the patterns between them, and ask questions in plain language. Local-first." />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-icon.png" />
+  </head>
+  <body>
+    <header class="wrap nav">
+      <a class="brand" href="/"><img src="/icon.png" alt="" width="28" height="28" /> YouAI</a>
+      <a class="button small" href={appUrl}>Open the app</a>
+    </header>
+
+    <main>
+      <section class="wrap hero">
+        <h1>Find out what actually makes your days better.</h1>
+        <p class="lead">
+          YouAI brings together everything you already track, finds the patterns hiding between
+          them, and lets you ask about them in plain language. Your data stays on your device.
+        </p>
+        <div class="cta">
+          <a class="button" href={appUrl}>Open the web app</a>
+          <a class="button ghost" href="#features">See what it does</a>
+        </div>
+      </section>
+
+      <section class="wrap grid">
+        {
+          ideas.map((idea) => (
+            <article class="card">
+              <h2>{idea.title}</h2>
+              <p>{idea.body}</p>
+            </article>
+          ))
+        }
+      </section>
+
+      <section id="features" class="wrap features">
+        <h2>What's inside</h2>
+        <dl>
+          {
+            features.map(([name, text]) => (
+              <div>
+                <dt>{name}</dt>
+                <dd>{text}</dd>
+              </div>
+            ))
+          }
+        </dl>
+      </section>
+    </main>
+
+    <footer class="wrap footer">
+      <span>© {new Date().getFullYear()} YouAI</span>
+      <a href={appUrl}>Open the app</a>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: #0b0d12;
+    --panel: #141821;
+    --border: #232a36;
+    --text: #e8ecf3;
+    --muted: #9aa4b5;
+    --accent: #7c9cff;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  a { color: inherit; text-decoration: none; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding-top: 20px; padding-bottom: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .brand img { border-radius: 6px; }
+  .hero { padding-top: 96px; padding-bottom: 72px; max-width: 760px; margin-left: max(24px, calc((100% - 1040px) / 2)); }
+  h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.1; margin: 0 0 20px; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 1.15rem; margin: 0 0 32px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .button { display: inline-block; background: var(--accent); color: #0b0d12; padding: 12px 20px; border-radius: 10px; font-weight: 600; }
+  .button.small { padding: 8px 14px; font-size: 0.9rem; }
+  .button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; padding-bottom: 72px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+  .card h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .card p { color: var(--muted); margin: 0; }
+  .features h2 { font-size: 1.6rem; margin: 0 0 20px; }
+  .features dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px 32px; margin: 0; }
+  .features dt { font-weight: 600; }
+  .features dd { margin: 4px 0 0; color: var(--muted); }
+  .footer { display: flex; justify-content: space-between; color: var(--muted); padding-top: 72px; padding-bottom: 40px; font-size: 0.9rem; }
+</style>

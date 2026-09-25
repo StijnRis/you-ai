@@ -1,0 +1,22 @@
+{
+  "name": "you-ai",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:e2e": "turbo test:e2e",
+    "check": "turbo typecheck lint test",
+    "bootstrap": "node scripts/bootstrap.mjs"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.4",
+    "typescript": "~5.9.3"
+  },
+  "packageManager": "pnpm@11.3.0",
+  "engines": {
+    "node": ">=24"
+  }
+}

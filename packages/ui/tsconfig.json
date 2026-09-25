@@ -1,0 +1,4 @@
+{
+  "extends": "@youai/config-ts/react-native.json",
+  "include": ["src", "nativewind-env.d.ts"]
+}

@@ -1,0 +1,33 @@
+packages:
+  - apps/*
+  - packages/*
+
+nodeLinker: hoisted
+
+allowBuilds:
+  esbuild: true
+  sharp: false
+  unrs-resolver: false
+  workerd: true
+
+minimumReleaseAgeExclude:
+  - '@turbo/darwin-64@2.11.4'
+  - '@turbo/darwin-arm64@2.11.4'
+  - '@turbo/linux-64@2.11.4'
+  - '@turbo/linux-arm64@2.11.4'
+  - '@turbo/windows-64@2.11.4'
+  - '@turbo/windows-arm64@2.11.4'
+  - turbo@2.11.4
+  - '@ai-sdk/gateway@4.0.92'
+  - '@ai-sdk/mcp@2.0.58'
+  - '@ai-sdk/react@4.0.117'
+  - ai@7.0.114
+  - '@cloudflare/workers-types@5.20260925.1'
+  - miniflare@5.20260923.0-alpha
+  - wrangler@4.140.0
+  - '@vitest/mocker@5.0.2'
+  - '@vitest/spy@5.0.2'
+  - vitest@5.0.2
+
+patchedDependencies:
+  expo-sqlite@57.0.3: patches/expo-sqlite@57.0.3.patch

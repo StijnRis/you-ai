@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1790358029917,
+      "tag": "0000_rare_eddie_brock",
+      "breakpoints": true
+    }
+  ]
+}
