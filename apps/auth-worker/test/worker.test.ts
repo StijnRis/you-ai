@@ -3,7 +3,6 @@ import app from "../src/index";
 
 const env = {
   ALLOWED_ORIGINS: "http://localhost:8081",
-  NEBIUS_BASE_URL: "https://nebius.test/v1/",
   APP_REDIRECT_URLS: "youai://,http://localhost:8081",
   GITHUB_CLIENT_ID: "client-id",
   GITHUB_CLIENT_SECRET: "client-secret",
@@ -30,15 +29,15 @@ describe("AI passthrough", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("forwards to the default provider with the SDK's own auth header", async () => {
+  it("forwards to the named provider with the SDK's own auth header", async () => {
     const res = await request("/ai/chat/completions", {
       method: "POST",
-      headers: { authorization: "Bearer sk-user", "content-type": "application/json" },
+      headers: { authorization: "Bearer sk-user", "x-upstream-url": "https://llm.test/v1", "content-type": "application/json" },
       body: JSON.stringify({ model: "m" }),
     });
     expect(res.status).toBe(200);
     const [url, init] = upstream.mock.calls[0];
-    expect(String(url)).toBe("https://nebius.test/v1/chat/completions");
+    expect(String(url)).toBe("https://llm.test/v1/chat/completions");
     expect(new Headers(init?.headers).get("authorization")).toBe("Bearer sk-user");
   });
 

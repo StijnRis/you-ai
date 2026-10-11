@@ -1,7 +1,6 @@
 import { inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, settings } from "@youai/db";
-import { DEFAULT_CHAT_MODEL } from "./ai/provider";
 
 /**
  * Preferences for the person on this device, stored in the local `settings`
@@ -38,15 +37,15 @@ export const SETTINGS = {
   },
   aiBaseUrl: {
     label: "API URL",
-    help: "Claude (api.anthropic.com), Gemini (generativelanguage.googleapis.com) or any OpenAI-compatible API, e.g. https://api.openai.com/v1 or https://openrouter.ai/api/v1.",
+    help: "An OpenAI-compatible endpoint, e.g. https://api.openai.com/v1, https://api.anthropic.com/v1, https://generativelanguage.googleapis.com/v1beta/openai or https://openrouter.ai/api/v1.",
     schema: z.union([z.string().url(), z.literal("")]),
     default: "",
   },
   chatModel: {
     label: "Model",
     help: "Model id as your provider names it, e.g. gpt-4o-mini, claude-sonnet-4-5 or gemini-2.5-flash.",
-    schema: z.string().min(1).max(200),
-    default: DEFAULT_CHAT_MODEL,
+    schema: z.string().max(200),
+    default: "",
   },
   correlationMinOverlap: {
     label: "Minimum overlapping days",

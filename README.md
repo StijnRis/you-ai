@@ -38,8 +38,8 @@ pnpm --filter @youai/auth-worker dev   # worker on http://localhost:8787
 pnpm --filter @youai/mobile web        # the app in a browser (or: android / ios)
 ```
 
-In the app, open **More → Settings** and paste your own
-[Nebius Token Factory](https://tokenfactory.nebius.com) key to turn on chat,
+In the app, open **More → Settings** and enter an
+OpenAI-compatible API URL, model and key (OpenAI, Claude, Gemini, OpenRouter, ...) to turn on chat,
 experiment evaluation and conversions for unknown files. A Tavily key
 (optional) lets the assistant search the web. Keys stay in the device's secure
 storage.

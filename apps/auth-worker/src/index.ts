@@ -16,7 +16,6 @@ import { cors } from "hono/cors";
 type Bindings = {
   /** Comma-separated origins allowed to call from a browser, e.g. the Pages URL. */
   ALLOWED_ORIGINS: string;
-  NEBIUS_BASE_URL: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   /** Where GitHub sends the user back to, after the worker's callback: app scheme or web URL. */
@@ -67,8 +66,7 @@ function upstreamKey(c: Context<Env>): string | null {
 }
 
 /**
- * Passthrough to whichever provider the app names in `x-upstream-url` (default
- * Nebius), streaming included. The SDK in the app sets the provider's own auth
+ * Passthrough to whichever provider the app names in `x-upstream-url` streaming included. The SDK in the app sets the provider's own auth
  * header (bearer, x-api-key, x-goog-api-key); we forward it untouched.
  */
 app.all("/ai/*", async (c) => {
@@ -77,8 +75,8 @@ app.all("/ai/*", async (c) => {
     return c.json({ error: "Missing API key. Add your AI provider key in Settings." }, 401);
   }
 
-  const base = c.req.header("x-upstream-url") ?? c.env.NEBIUS_BASE_URL;
-  if (!/^https?:\/\//.test(base)) return c.json({ error: "Invalid AI provider URL." }, 400);
+  const base = c.req.header("x-upstream-url") ?? "";
+  if (!/^https?:\/\//.test(base)) return c.json({ error: "Missing or invalid AI API URL. Set it in Settings." }, 400);
   const path = c.req.path.replace(/^\/ai\//, "");
   const url = new URL(`${base.replace(/\/+$/, "")}/${path}`);
   url.search = new URL(c.req.url).search;

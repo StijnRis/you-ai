@@ -7,7 +7,6 @@
   "vars": {
     // Browser origins allowed to call the worker (the Expo web build on Pages, local dev).
     "ALLOWED_ORIGINS": "http://localhost:8081,http://localhost:19006",
-    "NEBIUS_BASE_URL": "https://api.tokenfactory.nebius.com/v1/",
     // Prefixes GitHub OAuth may redirect back to: the app's deep-link scheme and web URLs.
     "APP_REDIRECT_URLS": "youai://,exp://,http://localhost:8081",
     "GITHUB_CLIENT_ID": ""

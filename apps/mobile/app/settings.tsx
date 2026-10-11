@@ -36,7 +36,7 @@ export default function SettingsScreen() {
           description="Everything the AI features use. Your key is stored in this device's secure storage and only sent to the YouAI server, which forwards it to your provider without keeping it."
         />
         <Card className="gap-4">
-          <SettingField settingKey="aiBaseUrl" settings={settings} onSaved={setSettings} placeholder="https://api.tokenfactory.nebius.com/v1" />
+          <SettingField settingKey="aiBaseUrl" settings={settings} onSaved={setSettings} placeholder="https://api.openai.com/v1" />
           <SettingField settingKey="chatModel" settings={settings} onSaved={setSettings} />
           <KeyField
             key={`ai-${keys.ai}`}

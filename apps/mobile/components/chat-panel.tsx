@@ -4,7 +4,6 @@ import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useChat } from "@ai-sdk/react";
 import Markdown from "react-native-markdown-display";
-import { chatModelLabel } from "@youai/core/ai/models";
 import { Card, cn } from "@youai/ui";
 import { LocalChatTransport } from "../lib/chat-transport";
 import { notifyDataChanged } from "../lib/data-events";
@@ -202,7 +201,7 @@ export function ChatPanel({
             return (
               <View key={message.id} className="gap-1 border-t border-border pt-2">
                 <Text className="text-xs text-text">
-                  <Text className="font-medium">{chatModelLabel(e.model)}</Text> · {e.totalTokens ?? "—"} tokens ·{" "}
+                  <Text className="font-medium">{e.model}</Text> · {e.totalTokens ?? "—"} tokens ·{" "}
                   {e.durationMs < 1000 ? `${e.durationMs} ms` : `${(e.durationMs / 1000).toFixed(1)} s`}
                 </Text>
                 {(["first", "second"] as const).map((person, i) => (

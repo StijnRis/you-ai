@@ -1,10 +1,5 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
-import { CHAT_MODEL_OPTIONS, DEFAULT_AI_BASE_URL, detectProvider } from "./models";
-
-export { CHAT_MODEL_OPTIONS } from "./models";
 
 /**
  * Every model call goes through the you-ai worker, never straight to the provider:
@@ -20,14 +15,14 @@ export { CHAT_MODEL_OPTIONS } from "./models";
 export type AiConfig = {
   /** Base URL of the worker, e.g. https://youai-worker.example.workers.dev */
   workerUrl: string;
-  /** Upstream API base URL; empty means Nebius. */
+  /** Upstream API base URL (any OpenAI-compatible endpoint). */
   baseUrl: string;
   /** The user's key for that provider (BYOK). Later: replaced by a subscription token. */
   aiKey: string | null;
   /** The user's Tavily key for web research (BYOK). */
   tavilyKey: string | null;
   /** Chat model id chosen in settings. */
-  chatModel?: string;
+  chatModel: string;
   /** Streaming-capable fetch; on React Native pass `expo/fetch`. */
   fetch?: typeof globalThis.fetch;
 };
@@ -54,41 +49,29 @@ export function authHeaders(): Record<string, string> {
 }
 
 /**
- * The SDK talks to the worker as if it were the provider; the worker relays to
- * `x-upstream-url`. The SDK sets its own auth header (bearer, x-api-key or
- * x-goog-api-key) from `apiKey`, and the worker passes it through.
+ * Every provider is reached through its OpenAI-compatible endpoint, so the user
+ * only supplies URL + key + model (OpenAI, Claude and Gemini all offer one). The
+ * SDK talks to the worker as if it were the provider; the worker relays to
+ * `x-upstream-url`.
  */
 function provider(id: string): LanguageModel {
   const current = aiConfig();
-  const upstream = (current.baseUrl || DEFAULT_AI_BASE_URL).replace(/\/+$/, "");
-  const options = {
+  return createOpenAICompatible({
+    name: "ai",
     baseURL: workerUrl("/ai"),
     apiKey: current.aiKey ?? undefined,
-    headers: { "x-upstream-url": upstream },
+    headers: { "x-upstream-url": current.baseUrl.replace(/\/+$/, "") },
     fetch: current.fetch,
-  };
-  switch (detectProvider(upstream)) {
-    case "anthropic":
-      return createAnthropic(options)(id);
-    case "google":
-      return createGoogleGenerativeAI(options)(id);
-    default:
-      return createOpenAICompatible({
-        ...options,
-        name: "ai",
-        // Some providers only return usage for streaming responses when this is enabled.
-        includeUsage: true,
-        // Most providers support constrained decoding against a JSON schema; without
-        // it the model invents its own field names and conversions fail validation.
-        supportsStructuredOutputs: true,
-      })(id);
-  }
+    // Some providers only return usage for streaming responses when this is enabled.
+    includeUsage: true,
+    // Most providers support constrained decoding against a JSON schema; without
+    // it the model invents its own field names and conversions fail validation.
+    supportsStructuredOutputs: true,
+  })(id);
 }
 
-export const DEFAULT_CHAT_MODEL = CHAT_MODEL_OPTIONS[0].id;
-
 /** Conversation and tool calling. */
-export const CHAT_MODEL = () => config?.chatModel || DEFAULT_CHAT_MODEL;
+export const CHAT_MODEL = () => aiConfig().chatModel;
 
 /** Structured extraction (writing conversions). Same model as chat for now. */
 export const REASONING_MODEL = () => CHAT_MODEL();
@@ -98,11 +81,11 @@ export const chatModel = (override?: string) => provider(override || CHAT_MODEL(
 export const reasoningModel = () => provider(REASONING_MODEL());
 
 export function isModelConfigured(): boolean {
-  return Boolean(config?.aiKey);
+  return Boolean(config?.aiKey && config.baseUrl && config.chatModel);
 }
 
 export function assertModelConfigured(): void {
   if (!isModelConfigured()) {
-    throw new Error("No AI API key yet. Add one in Settings to use the AI features.");
+    throw new Error("Set an API URL, model and key in Settings to use the AI features.");
   }
 }

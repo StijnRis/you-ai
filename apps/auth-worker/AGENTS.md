@@ -2,7 +2,7 @@
 
 The only server. Stateless Hono app on Cloudflare Workers (`src/index.ts`):
 
-- `/ai/v1/*` streams to Nebius, `/search` to Tavily, using the key the app sends in `x-user-key`. `upstreamKey()` is where subscriptions will plug in.
+- `/ai/*` streams to the provider named in `x-upstream-url`, `/search` to Tavily, using the key the app sends in `x-user-key`. `upstreamKey()` is where subscriptions will plug in.
 - `/oauth/github/*` does the code exchange that needs the client secret.
 - `/proxy/ical` fetches calendar feeds for the web build (no CORS on calendar hosts).
 
