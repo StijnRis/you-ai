@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pressable, Switch, Text, View } from "react-native";
+import { Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
-import { AI_PROVIDERS, type AiProviderId } from "@youai/core/ai/models";
 import { isValidTimezone } from "@youai/core/events/time";
 import { SETTINGS, getSettings, setSetting, type SettingKey, type Settings } from "@youai/core/settings";
-import { Button, Card, ErrorText, Field, Loading, SectionHeading } from "@youai/ui";
+import { Card, ErrorText, Field, Loading, SectionHeading } from "@youai/ui";
 import { Screen } from "../components/screen";
 import { getKey, setKey } from "../lib/keys";
 import { refreshAiConfig } from "../lib/ai";
@@ -37,26 +36,7 @@ export default function SettingsScreen() {
           description="Everything the AI features use. Your key is stored in this device's secure storage and only sent to the YouAI server, which forwards it to your provider without keeping it."
         />
         <Card className="gap-4">
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-text">{SETTINGS.aiProvider.label}</Text>
-            <View className="flex-row flex-wrap gap-2">
-              {(Object.keys(AI_PROVIDERS) as AiProviderId[]).map((id) => (
-                <Pressable
-                  key={id}
-                  onPress={async () => {
-                    await setSetting("aiProvider", id);
-                    setSettings({ ...settings, aiProvider: id });
-                    await refreshAiConfig();
-                  }}
-                  className={`rounded-md border px-2 py-1 ${settings.aiProvider === id ? "border-accent bg-accent-soft" : "border-border bg-surface"}`}
-                >
-                  <Text className={`text-xs ${settings.aiProvider === id ? "text-accent" : "text-muted"}`}>{AI_PROVIDERS[id].label}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Text className="text-xs text-muted">{AI_PROVIDERS[settings.aiProvider].hint}</Text>
-          </View>
-          <SettingField key={`url-${settings.aiProvider}`} settingKey="aiBaseUrl" settings={settings} onSaved={setSettings} placeholder={AI_PROVIDERS[settings.aiProvider].baseUrl} />
+          <SettingField settingKey="aiBaseUrl" settings={settings} onSaved={setSettings} placeholder="https://api.tokenfactory.nebius.com/v1" />
           <SettingField settingKey="chatModel" settings={settings} onSaved={setSettings} />
           <KeyField
             key={`ai-${keys.ai}`}
@@ -100,8 +80,6 @@ export default function SettingsScreen() {
         <SectionHeading title="You" />
         <Card className="gap-4">
           <SettingField settingKey="timezone" settings={settings} onSaved={setSettings} validate={(v) => (isValidTimezone(v) ? null : "Unknown timezone")} />
-          <SettingField settingKey="latitude" settings={settings} onSaved={setSettings} numeric />
-          <SettingField settingKey="longitude" settings={settings} onSaved={setSettings} numeric />
         </Card>
       </View>
 
@@ -136,22 +114,11 @@ function KeyField({
   onSave: (value: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(value);
-  const [saved, setSaved] = useState(false);
+  const save = () => {
+    if (draft !== value) void onSave(draft);
+  };
   return (
-    <View className="gap-2">
-      <Field label={label} help={help} value={draft} onChangeText={(t) => { setDraft(t); setSaved(false); }} secureTextEntry autoCapitalize="none" autoCorrect={false} />
-      <Button
-        variant="secondary"
-        className="self-start"
-        disabled={draft === value}
-        onPress={async () => {
-          await onSave(draft);
-          setSaved(true);
-        }}
-      >
-        {saved ? "✓ Saved" : "Save key"}
-      </Button>
-    </View>
+    <Field label={label} help={help} value={draft} onChangeText={setDraft} onBlur={save} onSubmitEditing={save} secureTextEntry autoCapitalize="none" autoCorrect={false} />
   );
 }
 

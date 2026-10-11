@@ -2,7 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
-import { AI_PROVIDERS, CHAT_MODEL_OPTIONS, type AiProviderId } from "./models";
+import { CHAT_MODEL_OPTIONS, DEFAULT_AI_BASE_URL, detectProvider } from "./models";
 
 export { CHAT_MODEL_OPTIONS } from "./models";
 
@@ -20,8 +20,7 @@ export { CHAT_MODEL_OPTIONS } from "./models";
 export type AiConfig = {
   /** Base URL of the worker, e.g. https://youai-worker.example.workers.dev */
   workerUrl: string;
-  provider: AiProviderId;
-  /** Upstream API base URL; empty means the provider's default. */
+  /** Upstream API base URL; empty means Nebius. */
   baseUrl: string;
   /** The user's key for that provider (BYOK). Later: replaced by a subscription token. */
   aiKey: string | null;
@@ -61,14 +60,14 @@ export function authHeaders(): Record<string, string> {
  */
 function provider(id: string): LanguageModel {
   const current = aiConfig();
-  const upstream = (current.baseUrl || AI_PROVIDERS[current.provider].baseUrl).replace(/\/+$/, "");
+  const upstream = (current.baseUrl || DEFAULT_AI_BASE_URL).replace(/\/+$/, "");
   const options = {
     baseURL: workerUrl("/ai"),
     apiKey: current.aiKey ?? undefined,
     headers: { "x-upstream-url": upstream },
     fetch: current.fetch,
   };
-  switch (current.provider) {
+  switch (detectProvider(upstream)) {
     case "anthropic":
       return createAnthropic(options)(id);
     case "google":

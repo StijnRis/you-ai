@@ -17,7 +17,6 @@ export async function refreshAiConfig(): Promise<void> {
   ]);
   configureAi({
     workerUrl: settings.workerUrl,
-    provider: settings.aiProvider,
     baseUrl: settings.aiBaseUrl,
     aiKey,
     tavilyKey,

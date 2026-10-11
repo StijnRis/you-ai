@@ -1,16 +1,13 @@
-/** Providers the user can pick. `baseUrl` is used when the URL setting is empty. */
-export const AI_PROVIDERS = {
-  "openai-compatible": {
-    label: "OpenAI-compatible",
-    hint: "OpenAI, OpenRouter, Groq, Together, Nebius, Ollama, ...",
-    baseUrl: "https://api.tokenfactory.nebius.com/v1",
-  },
-  anthropic: { label: "Claude (Anthropic)", hint: "claude-sonnet-4-5, ...", baseUrl: "https://api.anthropic.com/v1" },
-  google: { label: "Gemini (Google)", hint: "gemini-2.5-flash, ...", baseUrl: "https://generativelanguage.googleapis.com/v1beta" },
-} as const;
+export type AiProviderId = "openai-compatible" | "anthropic" | "google";
 
-export type AiProviderId = keyof typeof AI_PROVIDERS;
-export const AI_PROVIDER_IDS = Object.keys(AI_PROVIDERS) as [AiProviderId, ...AiProviderId[]];
+/** The API flavour is inferred from the URL; anything unknown is treated as OpenAI-compatible. */
+export function detectProvider(baseUrl: string): AiProviderId {
+  if (baseUrl.includes("anthropic.com")) return "anthropic";
+  if (baseUrl.includes("generativelanguage.googleapis.com")) return "google";
+  return "openai-compatible";
+}
+
+export const DEFAULT_AI_BASE_URL = "https://api.tokenfactory.nebius.com/v1";
 
 export const CHAT_MODEL_OPTIONS = [
   {

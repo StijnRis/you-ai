@@ -1,7 +1,6 @@
 import { inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, settings } from "@youai/db";
-import { AI_PROVIDER_IDS } from "./ai/models";
 import { DEFAULT_CHAT_MODEL } from "./ai/provider";
 
 /**
@@ -18,18 +17,6 @@ export const SETTINGS = {
     help: "Decides which calendar day an event belongs to.",
     schema: z.string().min(1).max(64),
     default: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  },
-  latitude: {
-    label: "Latitude",
-    help: "Used for the weather source.",
-    schema: z.number().min(-90).max(90).nullable(),
-    default: null as number | null,
-  },
-  longitude: {
-    label: "Longitude",
-    help: "Used for the weather source.",
-    schema: z.number().min(-180).max(180).nullable(),
-    default: null as number | null,
   },
   moodReminderHour: {
     label: "Daily mood reminder",
@@ -49,15 +36,9 @@ export const SETTINGS = {
     schema: z.boolean(),
     default: true,
   },
-  aiProvider: {
-    label: "AI provider",
-    help: "Which API the AI features talk to.",
-    schema: z.enum(AI_PROVIDER_IDS),
-    default: "openai-compatible" as (typeof AI_PROVIDER_IDS)[number],
-  },
   aiBaseUrl: {
     label: "API URL",
-    help: "Leave empty for the provider's default. For OpenAI-compatible APIs, e.g. https://api.openai.com/v1 or https://openrouter.ai/api/v1.",
+    help: "Claude (api.anthropic.com), Gemini (generativelanguage.googleapis.com) or any OpenAI-compatible API, e.g. https://api.openai.com/v1 or https://openrouter.ai/api/v1.",
     schema: z.union([z.string().url(), z.literal("")]),
     default: "",
   },
