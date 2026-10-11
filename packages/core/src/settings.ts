@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, settings } from "@youai/db";
-import { DEFAULT_AI_BASE_URL } from "./ai/models";
+import { AI_PROVIDER_IDS } from "./ai/models";
 import { DEFAULT_CHAT_MODEL } from "./ai/provider";
 
 /**
@@ -49,15 +49,21 @@ export const SETTINGS = {
     schema: z.boolean(),
     default: true,
   },
+  aiProvider: {
+    label: "AI provider",
+    help: "Which API the AI features talk to.",
+    schema: z.enum(AI_PROVIDER_IDS),
+    default: "openai-compatible" as (typeof AI_PROVIDER_IDS)[number],
+  },
   aiBaseUrl: {
-    label: "AI provider URL",
-    help: "Any OpenAI-compatible API, e.g. https://api.openai.com/v1, https://openrouter.ai/api/v1, https://api.groq.com/openai/v1.",
-    schema: z.string().url(),
-    default: DEFAULT_AI_BASE_URL,
+    label: "API URL",
+    help: "Leave empty for the provider's default. For OpenAI-compatible APIs, e.g. https://api.openai.com/v1 or https://openrouter.ai/api/v1.",
+    schema: z.union([z.string().url(), z.literal("")]),
+    default: "",
   },
   chatModel: {
-    label: "Chat model",
-    help: "Model id as your provider names it, e.g. gpt-4o-mini or meta-llama/llama-3.3-70b-instruct.",
+    label: "Model",
+    help: "Model id as your provider names it, e.g. gpt-4o-mini, claude-sonnet-4-5 or gemini-2.5-flash.",
     schema: z.string().min(1).max(200),
     default: DEFAULT_CHAT_MODEL,
   },

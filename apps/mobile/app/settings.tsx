@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Switch, Text, View } from "react-native";
+import { Pressable, Switch, Text, View } from "react-native";
 import { Stack } from "expo-router";
+import { AI_PROVIDERS, type AiProviderId } from "@youai/core/ai/models";
 import { isValidTimezone } from "@youai/core/events/time";
 import { SETTINGS, getSettings, setSetting, type SettingKey, type Settings } from "@youai/core/settings";
 import { Button, Card, ErrorText, Field, Loading, SectionHeading } from "@youai/ui";
@@ -32,13 +33,34 @@ export default function SettingsScreen() {
 
       <View>
         <SectionHeading
-          title="API keys"
-          description="Bring your own keys. They are stored in this device's secure storage and only ever sent to the YouAI server, which forwards them upstream without keeping them."
+          title="AI"
+          description="Everything the AI features use. Your key is stored in this device's secure storage and only sent to the YouAI server, which forwards it to your provider without keeping it."
         />
         <Card className="gap-4">
+          <View className="gap-2">
+            <Text className="text-sm font-medium text-text">{SETTINGS.aiProvider.label}</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {(Object.keys(AI_PROVIDERS) as AiProviderId[]).map((id) => (
+                <Pressable
+                  key={id}
+                  onPress={async () => {
+                    await setSetting("aiProvider", id);
+                    setSettings({ ...settings, aiProvider: id });
+                    await refreshAiConfig();
+                  }}
+                  className={`rounded-md border px-2 py-1 ${settings.aiProvider === id ? "border-accent bg-accent-soft" : "border-border bg-surface"}`}
+                >
+                  <Text className={`text-xs ${settings.aiProvider === id ? "text-accent" : "text-muted"}`}>{AI_PROVIDERS[id].label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text className="text-xs text-muted">{AI_PROVIDERS[settings.aiProvider].hint}</Text>
+          </View>
+          <SettingField key={`url-${settings.aiProvider}`} settingKey="aiBaseUrl" settings={settings} onSaved={setSettings} placeholder={AI_PROVIDERS[settings.aiProvider].baseUrl} />
+          <SettingField settingKey="chatModel" settings={settings} onSaved={setSettings} />
           <KeyField
             key={`ai-${keys.ai}`}
-            label="AI provider key"
+            label="API key"
             help="Powers chat, experiment evaluation and writing conversions for unknown files."
             value={keys.ai}
             onSave={async (value) => {
@@ -49,7 +71,7 @@ export default function SettingsScreen() {
           />
           <KeyField
             key={`tavily-${keys.tavily}`}
-            label="Tavily key (optional)"
+            label="Tavily key (web search, optional)"
             help="Lets the assistant search the web when designing experiments."
             value={keys.tavily}
             onSave={async (value) => {
@@ -58,6 +80,19 @@ export default function SettingsScreen() {
               await refreshAiConfig();
             }}
           />
+          <View className="flex-row items-center gap-3">
+            <Switch
+              value={settings.allowInference}
+              onValueChange={async (on) => {
+                await setSetting("allowInference", on);
+                setSettings({ ...settings, allowInference: on });
+              }}
+            />
+            <View className="flex-1">
+              <Text className="text-sm font-medium text-text">{SETTINGS.allowInference.label}</Text>
+              <Text className="text-xs text-muted">{SETTINGS.allowInference.help}</Text>
+            </View>
+          </View>
         </Card>
       </View>
 
@@ -76,19 +111,6 @@ export default function SettingsScreen() {
           <SettingField settingKey="correlationMinOverlap" settings={settings} onSaved={setSettings} numeric />
           <SettingField settingKey="correlationMaxLag" settings={settings} onSaved={setSettings} numeric />
           <SettingField settingKey="correlationAlpha" settings={settings} onSaved={setSettings} numeric />
-          <View className="flex-row items-center gap-3">
-            <Switch
-              value={settings.allowInference}
-              onValueChange={async (on) => {
-                await setSetting("allowInference", on);
-                setSettings({ ...settings, allowInference: on });
-              }}
-            />
-            <View className="flex-1">
-              <Text className="text-sm font-medium text-text">{SETTINGS.allowInference.label}</Text>
-              <Text className="text-xs text-muted">{SETTINGS.allowInference.help}</Text>
-            </View>
-          </View>
         </Card>
       </View>
 
@@ -96,8 +118,6 @@ export default function SettingsScreen() {
         <SectionHeading title="Server" />
         <Card className="gap-4">
           <SettingField settingKey="workerUrl" settings={settings} onSaved={setSettings} />
-          <SettingField settingKey="aiBaseUrl" settings={settings} onSaved={setSettings} />
-          <SettingField settingKey="chatModel" settings={settings} onSaved={setSettings} />
         </Card>
       </View>
     </Screen>
@@ -141,12 +161,14 @@ function SettingField({
   onSaved,
   numeric,
   validate,
+  placeholder,
 }: {
   settingKey: SettingKey;
   settings: Settings;
   onSaved: (next: Settings) => void;
   numeric?: boolean;
   validate?: (value: string) => string | null;
+  placeholder?: string;
 }) {
   const current = settings[settingKey];
   const [draft, setDraft] = useState(current === null ? "" : String(current));
@@ -172,6 +194,7 @@ function SettingField({
         label={definition.label}
         help={definition.help}
         value={draft}
+        placeholder={placeholder}
         onChangeText={setDraft}
         onBlur={() => void save()}
         onSubmitEditing={() => void save()}

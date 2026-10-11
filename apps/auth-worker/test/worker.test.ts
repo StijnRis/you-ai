@@ -25,21 +25,33 @@ const request = (path: string, init?: RequestInit) => app.request(path, init, en
 
 describe("AI passthrough", () => {
   it("requires the user's key", async () => {
-    const res = await request("/ai/v1/chat/completions", { method: "POST", body: "{}" });
+    const res = await request("/ai/chat/completions", { method: "POST", body: "{}" });
     expect(res.status).toBe(401);
     expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("forwards to Nebius with the user's key as the bearer token", async () => {
-    const res = await request("/ai/v1/chat/completions", {
+  it("forwards to the default provider with the SDK's own auth header", async () => {
+    const res = await request("/ai/chat/completions", {
       method: "POST",
-      headers: { "x-user-key": "sk-user", "content-type": "application/json" },
+      headers: { authorization: "Bearer sk-user", "content-type": "application/json" },
       body: JSON.stringify({ model: "m" }),
     });
     expect(res.status).toBe(200);
     const [url, init] = upstream.mock.calls[0];
     expect(String(url)).toBe("https://nebius.test/v1/chat/completions");
-    expect((init?.headers as Record<string, string>).authorization).toBe("Bearer sk-user");
+    expect(new Headers(init?.headers).get("authorization")).toBe("Bearer sk-user");
+  });
+
+  it("relays to the provider named in x-upstream-url", async () => {
+    await request("/ai/messages", {
+      method: "POST",
+      headers: { "x-api-key": "sk-ant", "x-upstream-url": "https://api.anthropic.com/v1" },
+      body: "{}",
+    });
+    const [url, init] = upstream.mock.calls[0];
+    expect(String(url)).toBe("https://api.anthropic.com/v1/messages");
+    expect(new Headers(init?.headers).get("x-api-key")).toBe("sk-ant");
+    expect(new Headers(init?.headers).has("x-upstream-url")).toBe(false);
   });
 });
 
@@ -55,7 +67,7 @@ describe("search passthrough", () => {
 describe("CORS", () => {
   it("allows the app's origin and not others", async () => {
     const preflight = (origin: string) =>
-      request("/ai/v1/chat/completions", {
+      request("/ai/chat/completions", {
         method: "OPTIONS",
         headers: { origin, "access-control-request-method": "POST" },
       });

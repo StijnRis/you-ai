@@ -29,7 +29,7 @@ export async function searchWeb(
 
   const response = await fetch(workerUrl("/search"), {
     method: "POST",
-    headers: { "content-type": "application/json", ...authHeaders("tavily") },
+    headers: { "content-type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       query,
       search_depth: options.depth ?? "basic",

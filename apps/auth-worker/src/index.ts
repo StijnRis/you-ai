@@ -5,7 +5,7 @@ import { cors } from "hono/cors";
  * The only server in you-ai. The app keeps all data on device; this worker
  * exists for the few things a device cannot do on its own:
  *
- *   - relay model calls to Nebius and searches to Tavily (no browser CORS, and
+ *   - relay model calls to the chosen AI provider and searches to Tavily (no browser CORS, and
  *     it is the seam where subscriptions will plug in later);
  *   - finish OAuth flows that need a client secret (GitHub);
  *   - fetch iCal feeds for the web build (calendar hosts send no CORS headers).
@@ -35,7 +35,6 @@ app.use(
       const allowed = (c.env as Bindings).ALLOWED_ORIGINS.split(",").map((o: string) => o.trim());
       return allowed.includes("*") || allowed.includes(origin) ? origin : null;
     },
-    allowHeaders: ["content-type", "authorization", "x-user-key"],
     allowMethods: ["GET", "POST", "OPTIONS"],
     maxAge: 86400,
   }),
@@ -67,23 +66,29 @@ function upstreamKey(c: Context<Env>): string | null {
   return c.req.header("x-user-key") ?? null;
 }
 
-/** OpenAI-compatible passthrough to the provider named in `x-upstream-url` (default Nebius), streaming included. */
-app.all("/ai/v1/*", async (c) => {
-  const key = upstreamKey(c);
-  if (!key) return c.json({ error: "Missing API key. Add your AI provider key in Settings." }, 401);
+/**
+ * Passthrough to whichever provider the app names in `x-upstream-url` (default
+ * Nebius), streaming included. The SDK in the app sets the provider's own auth
+ * header (bearer, x-api-key, x-goog-api-key); we forward it untouched.
+ */
+app.all("/ai/*", async (c) => {
+  const headers = new Headers(c.req.raw.headers);
+  if (!headers.has("authorization") && !headers.has("x-api-key") && !headers.has("x-goog-api-key")) {
+    return c.json({ error: "Missing API key. Add your AI provider key in Settings." }, 401);
+  }
 
-  const path = c.req.path.replace(/^\/ai\/v1\//, "");
   const base = c.req.header("x-upstream-url") ?? c.env.NEBIUS_BASE_URL;
   if (!/^https?:\/\//.test(base)) return c.json({ error: "Invalid AI provider URL." }, 400);
-  const url = new URL(path, base.replace(/\/?$/, "/"));
+  const path = c.req.path.replace(/^\/ai\//, "");
+  const url = new URL(`${base.replace(/\/+$/, "")}/${path}`);
   url.search = new URL(c.req.url).search;
+
+  for (const name of ["host", "origin", "referer", "cookie", "x-upstream-url", "x-user-key"]) headers.delete(name);
+  for (const name of [...headers.keys()]) if (name.startsWith("cf-") || name.startsWith("x-forwarded-")) headers.delete(name);
 
   const upstream = await fetch(url, {
     method: c.req.method,
-    headers: {
-      "content-type": c.req.header("content-type") ?? "application/json",
-      authorization: `Bearer ${key}`,
-    },
+    headers,
     body: ["GET", "HEAD"].includes(c.req.method) ? undefined : c.req.raw.body,
   });
 

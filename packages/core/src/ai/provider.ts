@@ -1,5 +1,8 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { CHAT_MODEL_OPTIONS } from "./models";
+import type { LanguageModel } from "ai";
+import { AI_PROVIDERS, CHAT_MODEL_OPTIONS, type AiProviderId } from "./models";
 
 export { CHAT_MODEL_OPTIONS } from "./models";
 
@@ -17,7 +20,8 @@ export { CHAT_MODEL_OPTIONS } from "./models";
 export type AiConfig = {
   /** Base URL of the worker, e.g. https://youai-worker.example.workers.dev */
   workerUrl: string;
-  /** Base URL of any OpenAI-compatible API (OpenAI, OpenRouter, Groq, Ollama, Nebius, ...). */
+  provider: AiProviderId;
+  /** Upstream API base URL; empty means the provider's default. */
   baseUrl: string;
   /** The user's key for that provider (BYOK). Later: replaced by a subscription token. */
   aiKey: string | null;
@@ -29,10 +33,7 @@ export type AiConfig = {
   fetch?: typeof globalThis.fetch;
 };
 
-type Provider = ReturnType<typeof createOpenAICompatible>;
-
 let config: AiConfig | null = null;
-let cached: { signature: string; provider: Provider } | undefined;
 
 export function configureAi(next: AiConfig): void {
   config = next;
@@ -48,32 +49,41 @@ export function workerUrl(path: string): string {
 }
 
 /** Headers the worker uses to decide whose key pays for a request. */
-export function authHeaders(kind: "ai" | "tavily"): Record<string, string> {
-  const key = kind === "ai" ? aiConfig().aiKey : aiConfig().tavilyKey;
+export function authHeaders(): Record<string, string> {
+  const key = aiConfig().tavilyKey;
   return key ? { "x-user-key": key } : {};
 }
 
-function provider(): Provider {
+/**
+ * The SDK talks to the worker as if it were the provider; the worker relays to
+ * `x-upstream-url`. The SDK sets its own auth header (bearer, x-api-key or
+ * x-goog-api-key) from `apiKey`, and the worker passes it through.
+ */
+function provider(id: string): LanguageModel {
   const current = aiConfig();
-  const signature = `${current.workerUrl}|${current.baseUrl}|${current.aiKey ?? ""}`;
-  if (cached?.signature === signature) return cached.provider;
-
-  const instance = createOpenAICompatible({
-    name: "ai",
-    baseURL: workerUrl("/ai/v1"),
-    headers: { ...authHeaders("ai"), "x-upstream-url": current.baseUrl },
+  const upstream = (current.baseUrl || AI_PROVIDERS[current.provider].baseUrl).replace(/\/+$/, "");
+  const options = {
+    baseURL: workerUrl("/ai"),
+    apiKey: current.aiKey ?? undefined,
+    headers: { "x-upstream-url": upstream },
     fetch: current.fetch,
-    // Some providers only return usage for streaming responses when this is enabled.
-    includeUsage: true,
-    /*
-     * Most providers support constrained decoding against a JSON schema. Without this
-     * the SDK only asks for "some JSON" and the model invents its own field
-     * names — plausible-looking conversions that fail validation every time.
-     */
-    supportsStructuredOutputs: true,
-  });
-  cached = { signature, provider: instance };
-  return instance;
+  };
+  switch (current.provider) {
+    case "anthropic":
+      return createAnthropic(options)(id);
+    case "google":
+      return createGoogleGenerativeAI(options)(id);
+    default:
+      return createOpenAICompatible({
+        ...options,
+        name: "ai",
+        // Some providers only return usage for streaming responses when this is enabled.
+        includeUsage: true,
+        // Most providers support constrained decoding against a JSON schema; without
+        // it the model invents its own field names and conversions fail validation.
+        supportsStructuredOutputs: true,
+      })(id);
+  }
 }
 
 export const DEFAULT_CHAT_MODEL = CHAT_MODEL_OPTIONS[0].id;
@@ -84,9 +94,9 @@ export const CHAT_MODEL = () => config?.chatModel || DEFAULT_CHAT_MODEL;
 /** Structured extraction (writing conversions). Same model as chat for now. */
 export const REASONING_MODEL = () => CHAT_MODEL();
 
-export const chatModel = (override?: string) => provider()(override || CHAT_MODEL());
+export const chatModel = (override?: string) => provider(override || CHAT_MODEL());
 
-export const reasoningModel = () => provider()(REASONING_MODEL());
+export const reasoningModel = () => provider(REASONING_MODEL());
 
 export function isModelConfigured(): boolean {
   return Boolean(config?.aiKey);
