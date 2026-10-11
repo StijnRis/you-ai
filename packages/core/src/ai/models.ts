@@ -1,3 +1,6 @@
+/** Default provider; the user can point the app at any OpenAI-compatible API. */
+export const DEFAULT_AI_BASE_URL = "https://api.tokenfactory.nebius.com/v1/";
+
 export const CHAT_MODEL_OPTIONS = [
   {
     id: "Qwen/Qwen3-235B-A22B-Instruct-2507",

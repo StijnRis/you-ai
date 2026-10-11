@@ -67,13 +67,15 @@ function upstreamKey(c: Context<Env>): string | null {
   return c.req.header("x-user-key") ?? null;
 }
 
-/** OpenAI-compatible passthrough to Nebius, streaming included. */
+/** OpenAI-compatible passthrough to the provider named in `x-upstream-url` (default Nebius), streaming included. */
 app.all("/ai/v1/*", async (c) => {
   const key = upstreamKey(c);
-  if (!key) return c.json({ error: "Missing API key. Add your Nebius key in Settings." }, 401);
+  if (!key) return c.json({ error: "Missing API key. Add your AI provider key in Settings." }, 401);
 
   const path = c.req.path.replace(/^\/ai\/v1\//, "");
-  const url = new URL(path, c.env.NEBIUS_BASE_URL.replace(/\/?$/, "/"));
+  const base = c.req.header("x-upstream-url") ?? c.env.NEBIUS_BASE_URL;
+  if (!/^https?:\/\//.test(base)) return c.json({ error: "Invalid AI provider URL." }, 400);
+  const url = new URL(path, base.replace(/\/?$/, "/"));
   url.search = new URL(c.req.url).search;
 
   const upstream = await fetch(url, {

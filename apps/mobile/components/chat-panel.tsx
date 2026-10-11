@@ -4,7 +4,7 @@ import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useChat } from "@ai-sdk/react";
 import Markdown from "react-native-markdown-display";
-import { CHAT_MODEL_OPTIONS, chatModelLabel, type ChatModelId } from "@youai/core/ai/models";
+import { chatModelLabel } from "@youai/core/ai/models";
 import { Card, cn } from "@youai/ui";
 import { LocalChatTransport } from "../lib/chat-transport";
 import { notifyDataChanged } from "../lib/data-events";
@@ -51,7 +51,6 @@ export function ChatPanel({
   emptyHint?: string;
 }) {
   const [input, setInput] = useState(initialInput);
-  const [model, setModel] = useState<ChatModelId>(CHAT_MODEL_OPTIONS[0].id);
   const [ratings, setRatings] = useState<Record<string, HumanRatings>>({});
   const [hiddenRecordIds, setHiddenRecordIds] = useState<Set<string>>(new Set());
   const transport = useMemo(() => new LocalChatTransport(), []);
@@ -69,7 +68,7 @@ export function ChatPanel({
   function submit(text: string) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
-    void sendMessage({ text: trimmed }, { body: { model } });
+    void sendMessage({ text: trimmed }, {});
     setInput("");
   }
 
@@ -100,20 +99,6 @@ export function ChatPanel({
 
   return (
     <View className="gap-4">
-      <View className="flex-row flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
-        <Text className="text-sm text-muted">Model</Text>
-        {CHAT_MODEL_OPTIONS.map((option) => (
-          <Pressable
-            key={option.id}
-            disabled={busy}
-            onPress={() => setModel(option.id)}
-            className={cn("rounded-md border px-2 py-1", model === option.id ? "border-accent bg-accent-soft" : "border-border bg-surface")}
-          >
-            <Text className={cn("text-xs", model === option.id ? "text-accent" : "text-muted")}>{option.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
       <Card className="min-h-[300px] gap-6">
         {messages.length === 0 ? (
           <View className="py-6">

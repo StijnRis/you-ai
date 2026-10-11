@@ -10,7 +10,7 @@ import * as SecureStore from "expo-secure-store";
  * sync between devices one day, and secrets should not ride along.
  */
 
-export type KeyName = "nebius" | "tavily";
+export type KeyName = "ai" | "tavily";
 
 const storageKey = (name: KeyName) => `youai.key.${name}`;
 

@@ -9,7 +9,7 @@ export function KeyNotice() {
   return (
     <Card className="border-accent bg-accent-soft">
       <Text className="text-sm text-text">
-        The AI features use your own Nebius key.{" "}
+        The AI features use your own AI provider key.{" "}
         <Link href="/settings">
           <Text className="font-medium text-accent">Add it in Settings →</Text>
         </Link>

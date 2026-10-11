@@ -1,6 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, settings } from "@youai/db";
+import { DEFAULT_AI_BASE_URL } from "./ai/models";
 import { DEFAULT_CHAT_MODEL } from "./ai/provider";
 
 /**
@@ -48,9 +49,15 @@ export const SETTINGS = {
     schema: z.boolean(),
     default: true,
   },
+  aiBaseUrl: {
+    label: "AI provider URL",
+    help: "Any OpenAI-compatible API, e.g. https://api.openai.com/v1, https://openrouter.ai/api/v1, https://api.groq.com/openai/v1.",
+    schema: z.string().url(),
+    default: DEFAULT_AI_BASE_URL,
+  },
   chatModel: {
     label: "Chat model",
-    help: "Any model your Nebius Token Factory key can reach.",
+    help: "Model id as your provider names it, e.g. gpt-4o-mini or meta-llama/llama-3.3-70b-instruct.",
     schema: z.string().min(1).max(200),
     default: DEFAULT_CHAT_MODEL,
   },

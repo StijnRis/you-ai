@@ -15,12 +15,12 @@ import { notifyDataChanged } from "../lib/data-events";
  */
 export default function SettingsScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [keys, setKeys] = useState({ nebius: "", tavily: "" });
+  const [keys, setKeys] = useState({ ai: "", tavily: "" });
 
   useEffect(() => {
     void (async () => {
       setSettings(await getSettings());
-      setKeys({ nebius: (await getKey("nebius")) ?? "", tavily: (await getKey("tavily")) ?? "" });
+      setKeys({ ai: (await getKey("ai")) ?? "", tavily: (await getKey("tavily")) ?? "" });
     })();
   }, []);
 
@@ -37,13 +37,13 @@ export default function SettingsScreen() {
         />
         <Card className="gap-4">
           <KeyField
-            key={`nebius-${keys.nebius}`}
-            label="Nebius Token Factory key"
+            key={`ai-${keys.ai}`}
+            label="AI provider key"
             help="Powers chat, experiment evaluation and writing conversions for unknown files."
-            value={keys.nebius}
+            value={keys.ai}
             onSave={async (value) => {
-              await setKey("nebius", value);
-              setKeys((k) => ({ ...k, nebius: value }));
+              await setKey("ai", value);
+              setKeys((k) => ({ ...k, ai: value }));
               await refreshAiConfig();
             }}
           />
@@ -96,6 +96,7 @@ export default function SettingsScreen() {
         <SectionHeading title="Server" />
         <Card className="gap-4">
           <SettingField settingKey="workerUrl" settings={settings} onSaved={setSettings} />
+          <SettingField settingKey="aiBaseUrl" settings={settings} onSaved={setSettings} />
           <SettingField settingKey="chatModel" settings={settings} onSaved={setSettings} />
         </Card>
       </View>
@@ -160,7 +161,7 @@ function SettingField({
     setError(result);
     if (!result) {
       onSaved({ ...settings, [settingKey]: value } as Settings);
-      if (settingKey === "workerUrl" || settingKey === "chatModel") await refreshAiConfig();
+      if (settingKey === "workerUrl" || settingKey === "chatModel" || settingKey === "aiBaseUrl") await refreshAiConfig();
       notifyDataChanged();
     }
   }

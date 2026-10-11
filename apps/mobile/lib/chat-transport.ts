@@ -1,6 +1,5 @@
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
 import { streamChat } from "@youai/core/chat/chat";
-import { DEFAULT_CHAT_MODEL } from "@youai/core/ai/provider";
 import { getSetting } from "@youai/core/settings";
 
 /**
@@ -14,7 +13,7 @@ export class LocalChatTransport implements ChatTransport<UIMessage> {
     abortSignal,
     body,
   }: Parameters<ChatTransport<UIMessage>["sendMessages"]>[0]): Promise<ReadableStream<UIMessageChunk>> {
-    const model = (body as { model?: string } | undefined)?.model ?? DEFAULT_CHAT_MODEL;
+    const model = (body as { model?: string } | undefined)?.model ?? (await getSetting("chatModel"));
     return streamChat({
       messages,
       model,

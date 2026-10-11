@@ -10,14 +10,15 @@ import { getKey } from "./keys";
  * that can stream a response body (React Native's built-in one cannot).
  */
 export async function refreshAiConfig(): Promise<void> {
-  const [settings, nebiusKey, tavilyKey] = await Promise.all([
+  const [settings, aiKey, tavilyKey] = await Promise.all([
     getSettings(),
-    getKey("nebius"),
+    getKey("ai"),
     getKey("tavily"),
   ]);
   configureAi({
     workerUrl: settings.workerUrl,
-    nebiusKey,
+    baseUrl: settings.aiBaseUrl,
+    aiKey,
     tavilyKey,
     chatModel: settings.chatModel,
     fetch: Platform.OS === "web" ? undefined : (expoFetch as unknown as typeof globalThis.fetch),
